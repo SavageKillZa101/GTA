@@ -2,23 +2,34 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Web GTA - Final Fix</title>
+    <title>Web GTA - Combat Edition</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #87CEEB; font-family: 'Courier New', monospace; }
-        #hud { position: absolute; top: 10px; left: 10px; color: #fff; pointer-events: none; text-shadow: 2px 2px #000; z-index: 10; }
-        #loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #111; color: #ffcc00; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
-        #virtual-console { position: absolute; bottom: 0; left: 0; width: 100%; height: 25%; background: rgba(0,0,0,0.8); color: #0f0; overflow-y: auto; display: none; padding: 10px; font-size: 12px; z-index: 1000; border-top: 2px solid #0f0; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: monospace; }
+        #hud { position: absolute; top: 10px; left: 10px; color: #fff; pointer-events: none; z-index: 10; }
+        #weapon-wheel {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 300px; height: 300px; background: radial-gradient(circle, rgba(0,0,0,0.8), transparent);
+            border-radius: 50%; display: none; align-items: center; justify-content: center; z-index: 2000;
+        }
+        .weapon-slot { position: absolute; color: #aaa; font-weight: bold; cursor: pointer; pointer-events: auto; padding: 10px; transition: 0.2s; }
+        .weapon-slot:hover { color: #0f0; transform: scale(1.2); }
+        .active-weapon { color: #ffcc00 !important; }
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; border: 1px solid red; border-radius: 50%; transform: translate(-50%, -50%); display: none; }
     </style>
 </head>
 <body>
 
-<div id="loader"><h1>LOADING LOS SANTOS...</h1><p id="load-msg">Checking assets...</p></div>
-<div id="virtual-console"><strong>DEBUG LOG (Press = to toggle)</strong><hr></div>
+<div id="crosshair"></div>
+<div id="weapon-wheel">
+    <div class="weapon-slot" style="top: 10%;" data-name="fist">FIST</div>
+    <div class="weapon-slot" style="right: 10%;" data-name="pistol">PISTOL</div>
+    <div class="weapon-slot" style="bottom: 10%;" data-name="m4">M4 RIFLE</div>
+    <div class="weapon-slot" style="left: 10%;" data-name="rpg">RPG</div>
+</div>
 
 <div id="hud">
     <div style="background: rgba(0,0,0,0.6); padding: 15px; border-radius: 5px;">
-        0 MPH<br>
-        WASD: Move | F: Enter Truck | M: Respawn Truck | <b>=: Debug Console</b>
+        <b>TAB</b>: Weapon Wheel | <b>LMB</b>: Shoot | <b>F</b>: Vehicle
     </div>
 </div>
 
@@ -35,117 +46,160 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-// --- CONFIG ---
-const SCALES = {
-    city: 1.0,
-    truck: 0.5,  // Adjusted for standard GLB size
-    player: 1.0
-};
-
-// --- DEBUGGER ---
-const vConsole = document.getElementById('virtual-console');
-function debugLog(msg, isError = false) {
-    const div = document.createElement('div');
-    if(isError) div.style.color = "red";
-    div.innerText = `> ${msg}`;
-    vConsole.appendChild(div);
-    console.log(msg);
-}
-
-// --- ENGINE ---
+// --- ENGINE SETUP ---
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87CEEB);
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
-const ambient = new THREE.AmbientLight(0xffffff, 2.0);
-scene.add(ambient);
-const sun = new THREE.DirectionalLight(0xffffff, 2.0);
+scene.add(new THREE.AmbientLight(0xffffff, 2.0));
+const sun = new THREE.DirectionalLight(0xffffff, 1.5);
 sun.position.set(50, 100, 50);
 scene.add(sun);
 
 const loader = new GLTFLoader();
-let player, truck, city, mixer;
+let player, truck, mixer, handBone;
+let currentWeapon = null;
+let weaponModels = {};
 let isDriving = false;
 const keys = {};
 
-// --- LOADERS (Paths corrected based on your screenshots) ---
+// --- 1. WEAPON LOADING & ATTACHMENT ---
+const weaponNames = ['pistol', 'm4', 'rpg'];
 
-// 1. Load City (Project.glb)
-loader.load('assets/source/Project.glb', (gltf) => {
-    city = gltf.scene;
-    scene.add(city);
-    debugLog("City (Project.glb) loaded");
-}, undefined, (e) => debugLog("FAILED: assets/source/Project.glb not found", true));
+function loadWeapons() {
+    weaponNames.forEach(name => {
+        loader.load(`assets/weapons/${name}.glb`, (gltf) => {
+            const model = gltf.scene;
+            model.scale.set(0.4, 0.4, 0.4); // Scale down for hand
+            model.visible = false;
+            weaponModels[name] = model;
+            console.log(`Weapon ${name} loaded`);
+        });
+    });
+}
 
-// 2. Load Truck
+// Attach weapon to the hand bone
+function equipWeapon(name) {
+    // Hide all weapons first
+    Object.values(weaponModels).forEach(m => m.visible = false);
+    
+    if (name === 'fist' || !handBone) {
+        document.getElementById('crosshair').style.display = 'none';
+        return;
+    }
+
+    const weapon = weaponModels[name];
+    if (weapon) {
+        handBone.add(weapon); // This is the magic: nesting the weapon in the hand bone
+        weapon.visible = true;
+        
+        // Manual offset adjustment (Adjust these numbers to fit the grip)
+        weapon.position.set(0, 0.1, 0); 
+        weapon.rotation.set(Math.PI / 2, 0, 0);
+        
+        document.getElementById('crosshair').style.display = 'block';
+        currentWeapon = name;
+    }
+}
+
+// --- 2. ASSET LOADING ---
+loader.load('assets/source/Project.glb', (gltf) => scene.add(gltf.scene));
+
 loader.load('assets/low-poly_truck_car_drifter.glb', (gltf) => {
     truck = gltf.scene;
-    truck.scale.set(SCALES.truck, SCALES.truck, SCALES.truck);
-    truck.position.set(5, 0, 5);
+    truck.scale.set(0.1, 0.1, 0.1);
     scene.add(truck);
-    debugLog("Truck loaded");
-}, undefined, (e) => debugLog("FAILED: assets/low-poly_truck_car_drifter.glb not found", true));
+});
 
-// 3. Load Player
 loader.load('assets/RiggedFigure.glb', (gltf) => {
     player = gltf.scene;
     scene.add(player);
     
     mixer = new THREE.AnimationMixer(player);
-    if(gltf.animations.length > 0) {
-        const action = mixer.clipAction(gltf.animations[0]);
-        action.play();
-    }
     
-    document.getElementById('loader').style.display = 'none';
-    debugLog("Player loaded");
-}, undefined, (e) => debugLog("FAILED: assets/RiggedFigure.glb not found", true));
+    // FIND THE HAND BONE (Check console to see exact name if this fails)
+    player.traverse((child) => {
+        if (child.isBone && (child.name.includes('Hand') || child.name.includes('RightHand'))) {
+            handBone = child;
+            console.log("Hand bone found: ", handBone.name);
+        }
+    });
 
-// --- LOGIC ---
-document.addEventListener('keydown', (e) => {
-    keys[e.key.toLowerCase()] = true;
-    if(e.key === '=') vConsole.style.display = vConsole.style.display === 'none' ? 'block' : 'none';
-    if(e.key.toLowerCase() === 'm' && truck && player) {
-        truck.position.set(player.position.x + 2, 0, player.position.z);
-        debugLog("Truck teleported to player");
-    }
-    if(e.key.toLowerCase() === 'f') toggleVehicle();
+    loadWeapons();
 });
-document.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
 
-function toggleVehicle() {
-    if(!player || !truck) return;
-    const dist = player.position.distanceTo(truck.position);
-    if(!isDriving && dist < 5) {
-        isDriving = true; player.visible = false;
-        debugLog("Driving...");
-    } else if(isDriving) {
-        isDriving = false; player.visible = true;
-        player.position.set(truck.position.x + 2, 0, truck.position.z);
-        debugLog("Walking...");
-    }
+// --- 3. SHOOTING LOGIC ---
+function shoot() {
+    if (!currentWeapon || isDriving) return;
+
+    // Create a simple bullet (Muzzle flash placeholder)
+    const flash = new THREE.Mesh(
+        new THREE.SphereGeometry(0.1),
+        new THREE.MeshBasicMaterial({ color: 0xffff00 })
+    );
+    
+    const vector = new THREE.Vector3();
+    camera.getWorldDirection(vector);
+    
+    flash.position.copy(player.position).add(new THREE.Vector3(0, 1.5, 0));
+    scene.add(flash);
+    
+    // Quick flash disappearance
+    setTimeout(() => scene.remove(flash), 50);
+
+    console.log("BANG! Shot fired with " + currentWeapon);
 }
 
+// --- 4. INPUTS ---
+document.addEventListener('mousedown', (e) => { if(e.button === 0) shoot(); });
+
+document.addEventListener('keydown', (e) => {
+    const k = e.key.toLowerCase();
+    keys[k] = true;
+    if(k === 'tab') document.getElementById('weapon-wheel').style.display = 'flex';
+});
+
+document.addEventListener('keyup', (e) => {
+    const k = e.key.toLowerCase();
+    keys[k] = false;
+    if(k === 'tab') document.getElementById('weapon-wheel').style.display = 'none';
+});
+
+// Weapon Wheel Click Handling
+document.querySelectorAll('.weapon-slot').forEach(slot => {
+    slot.addEventListener('click', () => {
+        const weaponName = slot.getAttribute('data-name');
+        equipWeapon(weaponName);
+        document.querySelectorAll('.weapon-slot').forEach(s => s.classList.remove('active-weapon'));
+        slot.classList.add('active-weapon');
+    });
+});
+
+// --- 5. ANIMATION LOOP ---
 function animate() {
     requestAnimationFrame(animate);
-    const delta = new THREE.Clock().getDelta();
-    if(mixer) mixer.update(0.016); // Standard frame delta
+    const delta = 0.016;
+    if(mixer) mixer.update(delta);
 
-    const target = isDriving ? truck : player;
-    if(target) {
-        const speed = isDriving ? 0.5 : 0.15;
-        if(keys['w']) target.position.z -= speed;
-        if(keys['s']) target.position.z += speed;
-        if(keys['a']) target.position.x -= speed;
-        if(keys['d']) target.position.x += speed;
+    if (player && !isDriving) {
+        const speed = 0.15;
+        if(keys['w']) player.position.z -= speed;
+        if(keys['s']) player.position.z += speed;
+        if(keys['a']) player.position.x -= speed;
+        if(keys['d']) player.position.x += speed;
 
-        camera.position.lerp(new THREE.Vector3(target.position.x, target.position.y + 10, target.position.z + 20), 0.1);
-        camera.lookAt(target.position);
+        // Make player look where the camera looks if a weapon is equipped
+        if (currentWeapon !== 'fist') {
+            player.rotation.y = camera.rotation.y;
+        }
+
+        camera.position.lerp(new THREE.Vector3(player.position.x, player.position.y + 5, player.position.z + 10), 0.1);
+        camera.lookAt(player.position);
     }
+    
     renderer.render(scene, camera);
 }
 animate();
