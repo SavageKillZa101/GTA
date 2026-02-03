@@ -2,40 +2,35 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Web GTA v2.0</title>
+    <title>Web GTA - Final Scaling & Combat</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; }
-        #hud { position: absolute; top: 10px; left: 10px; color: #fff; pointer-events: none; z-index: 10; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; }
+        body { margin: 0; overflow: hidden; background: #87CEEB; font-family: monospace; }
+        #hud { position: absolute; top: 10px; left: 10px; color: #fff; pointer-events: none; z-index: 10; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 5px; }
         #weapon-wheel {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             width: 350px; height: 350px; background: radial-gradient(circle, rgba(0,0,0,0.9), transparent);
             border-radius: 50%; display: none; align-items: center; justify-content: center; z-index: 2000;
         }
-        .weapon-slot { position: absolute; color: #888; font-weight: bold; cursor: pointer; pointer-events: auto; padding: 15px; transition: 0.2s; }
-        .weapon-slot:hover { color: #ffcc00; transform: scale(1.3); }
-        .active-weapon { color: #0f0 !important; border: 1px solid #0f0; }
-        #crosshair { position: absolute; top: 50%; left: 50%; width: 12px; height: 12px; border: 2px solid #0f0; border-radius: 50%; transform: translate(-50%, -50%); display: none; }
-        #v-console { position: absolute; bottom: 0; left: 0; width: 100%; height: 20%; background: rgba(0,0,0,0.95); color: #0f0; overflow-y: auto; display: none; padding: 10px; font-size: 12px; border-top: 2px solid #0f0; }
+        .weapon-slot { position: absolute; color: #fff; font-weight: bold; cursor: pointer; pointer-events: auto; padding: 20px; transition: 0.2s; background: rgba(255,255,255,0.1); border-radius: 10px; }
+        .weapon-slot:hover { background: #ffcc00; color: #000; transform: scale(1.2); }
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 14px; height: 14px; border: 2px solid #ff0000; border-radius: 50%; transform: translate(-50%, -50%); display: none; }
     </style>
 </head>
 <body>
 
 <div id="crosshair"></div>
 <div id="weapon-wheel">
-    <div class="weapon-slot" style="top: 5%;" data-name="fist">FIST</div>
-    <div class="weapon-slot" style="right: 5%;" data-name="pistol">PISTOL</div>
-    <div class="weapon-slot" style="bottom: 5%;" data-name="m4">M4 RIFLE</div>
-    <div class="weapon-slot" style="left: 5%;" data-name="rpg">RPG</div>
+    <div class="weapon-slot" style="top: 0%;" onclick="equip('fist')">FIST</div>
+    <div class="weapon-slot" style="right: 0%;" onclick="equip('pistol')">PISTOL</div>
+    <div class="weapon-slot" style="bottom: 0%;" onclick="equip('m4')">M4 RIFLE</div>
+    <div class="weapon-slot" style="left: 0%;" onclick="equip('rpg')">RPG</div>
 </div>
 
 <div id="hud">
-    <b>GTA PROTOTYPE</b><br>
-    WASD: Move/Drive | F: Enter/Exit<br>
-    TAB: Weapon Wheel | RMB: Aim | LMB: Shoot<br>
-    <span id="speed-ui">0 MPH</span>
+    <b>GTA WEB v3</b><br>
+    WASD: Move | F: Enter Truck<br>
+    TAB: Weapons | LMB: Fire
 </div>
-
-<div id="v-console"></div>
 
 <script type="importmap">
     {
@@ -50,13 +45,12 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-// --- CONFIG & SCALING ---
-// Your screenshot showed the truck was massive and character tiny. Fixed here:
+// --- ADJUSTED SCALES BASED ON VIDEO ---
 const SCALES = {
     city: 1.0,
-    player: 2.5,   // Enlarged from 1.0
-    truck: 0.005,  // Shrunk significantly from 0.1
-    weapons: 0.8
+    player: 20.0,   // Made much larger
+    truck: 2.0,     // Increased from your previous version
+    weapon: 1.5
 };
 
 const scene = new THREE.Scene();
@@ -64,127 +58,92 @@ scene.background = new THREE.Color(0x87CEEB);
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
-const vConsole = document.getElementById('v-console');
-const log = (msg) => { vConsole.innerHTML += `> ${msg}<br>`; vConsole.scrollTop = vConsole.scrollHeight; };
-
-// LIGHTING
-scene.add(new THREE.AmbientLight(0xffffff, 1.5));
-const sun = new THREE.DirectionalLight(0xffffff, 2.0);
-sun.position.set(100, 200, 100);
+// Brighter Lighting for Textures
+scene.add(new THREE.AmbientLight(0xffffff, 2.0));
+const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+sun.position.set(50, 100, 50);
 scene.add(sun);
 
-// --- ASSET REFS ---
 const loader = new GLTFLoader();
-let player, truck, city, mixer, handBone;
+let player, truck, mixer, handBone;
 let weaponModels = {};
-let currentWeaponName = "fist";
+let currentWeapon = null;
 let isDriving = false;
-let animations = {};
-let currentAction;
-let truckSpeed = 0;
-let truckRotation = 0;
 const keys = {};
 
-// --- COLLISION SYSTEM ---
-const collidableObjects = [];
-const checkCollision = (position, direction, distance) => {
-    const raycaster = new THREE.Raycaster(position, direction, 0, distance);
-    const intersects = raycaster.intersectObjects(collidableObjects, true);
-    return intersects.length > 0;
+// --- 1. WEAPON SYSTEM ---
+window.equip = (name) => {
+    Object.values(weaponModels).forEach(w => w.visible = false);
+    if(name === 'fist') {
+        currentWeapon = null;
+        document.getElementById('crosshair').style.display = 'none';
+        return;
+    }
+    if(weaponModels[name] && handBone) {
+        handBone.add(weaponModels[name]);
+        weaponModels[name].visible = true;
+        weaponModels[name].position.set(0, 0, 0); 
+        currentWeapon = name;
+        document.getElementById('crosshair').style.display = 'block';
+    }
+    document.getElementById('weapon-wheel').style.display = 'none';
 };
 
-// --- LOADING ---
-
-// 1. City with Collisions
+// --- 2. ASSET LOADING ---
+// City
 loader.load('assets/source/Project.glb', (gltf) => {
-    city = gltf.scene;
-    scene.add(city);
-    collidableObjects.push(city); // City is now a solid object
-    log("City Collisions Active");
+    scene.add(gltf.scene);
 });
 
-// 2. Character Fix (T-Pose to Idle)
+// Player & Animations
 loader.load('assets/RiggedFigure.glb', (gltf) => {
     player = gltf.scene;
     player.scale.set(SCALES.player, SCALES.player, SCALES.player);
     scene.add(player);
     
     mixer = new THREE.AnimationMixer(player);
-    gltf.animations.forEach(clip => {
-        animations[clip.name.toLowerCase()] = mixer.clipAction(clip);
-    });
+    // Auto-play the first animation to stop T-posing
+    if(gltf.animations.length > 0) mixer.clipAction(gltf.animations[0]).play();
 
-    // FIND THE HAND (Check console if this name is different)
-    player.traverse(n => { if(n.isBone && n.name.toLowerCase().includes("hand")) handBone = n; });
-
-    // Set default animation to IDLE (or first found clip)
-    currentAction = animations['idle'] || animations['take 001'] || mixer.clipAction(gltf.animations[0]);
-    if(currentAction) currentAction.play();
+    // Find Hand Bone
+    player.traverse(n => { if(n.isBone && n.name.toLowerCase().includes('hand')) handBone = n; });
     
-    log("Player Scale & Animation Fixed");
-    loadWeapons();
+    // Load weapons from your weapons folder
+    ['pistol', 'm4', 'rpg'].forEach(wName => {
+        loader.load(`assets/weapons/${wName}.glb`, (wGltf) => {
+            const m = wGltf.scene;
+            m.scale.set(SCALES.weapon, SCALES.weapon, SCALES.weapon);
+            m.visible = false;
+            weaponModels[wName] = m;
+        });
+    });
 });
 
-// 3. Truck Fix (Size & Physics)
+// Truck
 loader.load('assets/low-poly_truck_car_drifter.glb', (gltf) => {
     truck = gltf.scene;
     truck.scale.set(SCALES.truck, SCALES.truck, SCALES.truck);
-    truck.position.set(15, 0, 15);
+    truck.position.set(20, 0, 20);
     scene.add(truck);
-    log("Truck Shrunk & Ready");
 });
 
-// 4. Weapons
-function loadWeapons() {
-    ['pistol', 'm4', 'rpg'].forEach(name => {
-        loader.load(`assets/weapons/${name}.glb`, (gltf) => {
-            const w = gltf.scene;
-            w.scale.set(SCALES.weapons, SCALES.weapons, SCALES.weapons);
-            w.visible = false;
-            weaponModels[name] = w;
-        }, undefined, () => log(`Weapon ${name} path error`, true));
-    });
-}
-
-// --- WEAPON MECHANICS ---
-function equip(name) {
-    if(!handBone) return;
-    Object.values(weaponModels).forEach(m => m.visible = false);
-    currentWeaponName = name;
-    
-    if(name !== 'fist' && weaponModels[name]) {
-        handBone.add(weaponModels[name]);
-        weaponModels[name].visible = true;
-        weaponModels[name].rotation.x = Math.PI/2; // Orient correctly in hand
-        document.getElementById('crosshair').style.display = 'block';
-    } else {
-        document.getElementById('crosshair').style.display = 'none';
-    }
-}
-
-// --- INPUTS ---
+// --- 3. INPUTS ---
 document.addEventListener('keydown', e => {
     keys[e.key.toLowerCase()] = true;
     if(e.key === 'Tab') { e.preventDefault(); document.getElementById('weapon-wheel').style.display = 'flex'; }
     if(e.key === 'f') toggleVehicle();
-    if(e.key === '=') document.getElementById('v-console').style.display = document.getElementById('v-console').style.display === 'none' ? 'block' : 'none';
 });
 document.addEventListener('keyup', e => {
     keys[e.key.toLowerCase()] = false;
     if(e.key === 'Tab') document.getElementById('weapon-wheel').style.display = 'none';
 });
 
-document.querySelectorAll('.weapon-slot').forEach(slot => {
-    slot.onclick = () => equip(slot.dataset.name);
-});
-
 function toggleVehicle() {
     if(!player || !truck) return;
     const dist = player.position.distanceTo(truck.position);
-    if(!isDriving && dist < 12) {
+    if(!isDriving && dist < 15) {
         isDriving = true; player.visible = false;
     } else if(isDriving) {
         isDriving = false; player.visible = true;
@@ -192,62 +151,33 @@ function toggleVehicle() {
     }
 }
 
-// --- MAIN LOOP ---
+// Shooting Flash
+function shoot() {
+    if(!currentWeapon) return;
+    const flash = new THREE.PointLight(0xffaa00, 10, 10);
+    flash.position.copy(player.position).add(new THREE.Vector3(0, 5, 0));
+    scene.add(flash);
+    setTimeout(() => scene.remove(flash), 50);
+}
+document.addEventListener('mousedown', (e) => { if(e.button === 0) shoot(); });
+
+// --- 4. LOOP ---
 const clock = new THREE.Clock();
 function animate() {
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
     if(mixer) mixer.update(delta);
 
-    if(isDriving) {
-        // Truck Movement with Collisions
-        if(keys['w']) truckSpeed = Math.min(truckSpeed + 0.1, 1.5);
-        else if(keys['s']) truckSpeed = Math.max(truckSpeed - 0.1, -0.5);
-        else truckSpeed *= 0.95;
+    const target = isDriving ? truck : player;
+    if(target) {
+        const speed = isDriving ? 1.0 : 0.4;
+        if(keys['w']) target.position.z -= speed;
+        if(keys['s']) target.position.z += speed;
+        if(keys['a']) target.position.x -= speed;
+        if(keys['d']) target.position.x += speed;
 
-        if(keys['a']) truckRotation += 0.03;
-        if(keys['d']) truckRotation -= 0.03;
-
-        truck.rotation.y = truckRotation;
-        
-        // Simple Collision Ray (Forward)
-        const dir = new THREE.Vector3(Math.sin(truckRotation), 0, Math.cos(truckRotation));
-        if(!checkCollision(truck.position, dir, 5)) {
-            truck.position.x += Math.sin(truckRotation) * truckSpeed;
-            truck.position.z += Math.cos(truckRotation) * truckSpeed;
-        } else {
-            truckSpeed = 0; // Stop on hit
-        }
-
-        camera.position.lerp(new THREE.Vector3(truck.position.x - Math.sin(truckRotation)*30, 15, truck.position.z - Math.cos(truckRotation)*30), 0.1);
-        camera.lookAt(truck.position);
-        document.getElementById('speed-ui').innerText = Math.round(Math.abs(truckSpeed)*100) + " MPH";
-
-    } else if(player) {
-        // Character Movement
-        let moving = false;
-        const dir = new THREE.Vector3();
-        if(keys['w']) { dir.z = -1; moving = true; }
-        if(keys['s']) { dir.z = 1; moving = true; }
-        if(keys['a']) { dir.x = -1; moving = true; }
-        if(keys['d']) { dir.x = 1; moving = true; }
-        
-        dir.normalize();
-        if(!checkCollision(player.position, dir, 2)) {
-            player.position.addScaledVector(dir, 0.3);
-        }
-
-        // Animation State Logic
-        const animName = moving ? (keys['shift'] ? 'run' : 'walk') : 'idle';
-        const nextAction = animations[animName];
-        if(nextAction && currentAction !== nextAction) {
-            currentAction.crossFadeTo(nextAction, 0.2, true);
-            nextAction.play();
-            currentAction = nextAction;
-        }
-
-        camera.position.lerp(new THREE.Vector3(player.position.x, player.position.y + 10, player.position.z + 20), 0.1);
-        camera.lookAt(player.position);
+        camera.position.lerp(new THREE.Vector3(target.position.x, target.position.y + 15, target.position.z + 30), 0.1);
+        camera.lookAt(target.position);
     }
     renderer.render(scene, camera);
 }
