@@ -3,59 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web GTA: Truck Edition</title>
+    <title>Web GTA: Ultimate Prototype</title>
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Arial', sans-serif; background: #000; }
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #000; }
         #hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; color: white; }
         
-        /* Speedometer & UI */
-        #ui-container { position: absolute; bottom: 30px; right: 30px; text-align: right; }
-        #mph { font-size: 48px; font-weight: 900; font-style: italic; text-shadow: 2px 2px #000; }
-        #status { font-size: 18px; color: #00ff00; }
-
+        /* HUD Panels */
+        .panel { position: absolute; background: rgba(0,0,0,0.7); padding: 15px; border-radius: 10px; border: 1px solid #444; }
+        #controls { top: 20px; left: 20px; font-size: 13px; line-height: 1.6; }
+        #stats { bottom: 20px; right: 20px; text-align: right; border-right: 5px solid #ffcc00; }
+        #mph { font-size: 48px; font-weight: 900; color: #ffcc00; margin: 0; font-style: italic; }
+        
         /* Weapon Wheel */
         #weapon-wheel {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 350px; height: 350px; background: rgba(0,0,0,0.85);
+            width: 300px; height: 300px; background: radial-gradient(circle, rgba(40,40,40,0.9) 0%, rgba(0,0,0,0.8) 100%);
             border-radius: 50%; display: none; align-items: center; justify-content: center;
-            pointer-events: auto; border: 4px solid #444;
+            pointer-events: auto; border: 4px solid #555; z-index: 10;
         }
         .slot {
-            position: absolute; padding: 15px; cursor: pointer; color: #aaa;
-            font-weight: bold; transition: 0.2s; border-radius: 10px;
+            position: absolute; padding: 10px 15px; cursor: pointer; color: #888;
+            font-weight: bold; transition: 0.2s; border-radius: 5px; text-transform: uppercase;
         }
         .slot:hover { color: #fff; background: rgba(255,255,255,0.1); }
-        .slot.active { color: #00ff00; border: 2px solid #00ff00; }
+        .slot.active { color: #00ffcc; background: rgba(0,255,204,0.1); border: 1px solid #00ffcc; }
 
-        /* Loading Screen */
+        /* Loader */
         #loader {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #111; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; z-index: 100;
+            background: #111; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000;
         }
+        .bar { width: 200px; height: 4px; background: #333; margin-top: 20px; position: relative; }
+        .progress { width: 0%; height: 100%; background: #ffcc00; transition: width 0.3s; }
     </style>
 </head>
 <body>
 
 <div id="loader">
-    <h1>LOS SANTOS WEB</h1>
-    <p>Loading City & Assets...</p>
+    <h2 style="color: white; letter-spacing: 4px;">INITIALIZING WORLD</h2>
+    <div class="bar"><div id="progress" class="progress"></div></div>
+    <p id="load-status" style="color: #666; font-size: 12px; margin-top: 10px;">Loading Assets...</p>
 </div>
 
 <div id="hud">
-    <div style="padding: 20px; background: rgba(0,0,0,0.4); width: fit-content;">
-        WASD: Move | <b>F: Enter/Exit Truck</b> | <b>TAB: Weapon Wheel</b>
+    <div id="controls" class="panel">
+        <b style="color: #ffcc00;">CONTROLS</b><br>
+        WASD - Move / Drive<br>
+        SPACE - Jump / Handbrake<br>
+        F - Enter/Exit Truck<br>
+        TAB - Weapon Wheel
     </div>
     
-    <div id="ui-container">
-        <div id="status">WALKING</div>
-        <div id="mph">00 MPH</div>
+    <div id="stats" class="panel">
+        <div id="mode-text" style="color: #00ffcc; font-weight: bold;">ON FOOT</div>
+        <div id="mph">00</div>
+        <div style="font-size: 12px; color: #888;">MPH</div>
     </div>
 
     <div id="weapon-wheel">
-        <div class="slot active" data-w="fist" style="top: 20px;">FIST</div>
-        <div class="slot" data-w="pistol" style="right: 20px;">PISTOL</div>
-        <div class="slot" data-w="rifle" style="bottom: 20px;">RIFLE</div>
+        <div class="slot active" data-w="fist" style="top: 20px;">Fist</div>
+        <div class="slot" data-w="pistol" style="right: 20px;">Pistol</div>
+        <div class="slot" data-w="rifle" style="bottom: 20px;">Rifle</div>
         <div class="slot" data-w="rpg" style="left: 20px;">RPG</div>
     </div>
 </div>
@@ -74,10 +82,14 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as CANNON from 'https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js';
 
-// --- INITIALIZATION ---
+// --- CONFIGURATION ---
+const PLAYER_SCALE = 1.0; // Change this to 10 or 0.1 if character looks wrong
+const TRUCK_SCALE = 1.5;
+
+// --- SCENE SETUP ---
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87CEEB);
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
@@ -86,147 +98,168 @@ document.body.appendChild(renderer.domElement);
 const world = new CANNON.World();
 world.gravity.set(0, -9.82, 0);
 
-// Lights
-const ambient = new THREE.AmbientLight(0xffffff, 0.7);
-scene.add(ambient);
+// Lighting
+scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-sun.position.set(50, 100, 50);
+sun.position.set(100, 200, 100);
 sun.castShadow = true;
 scene.add(sun);
 
-// --- PHYSICS FLOOR ---
+// Physics Floor
 const groundBody = new CANNON.Body({ mass: 0, shape: new CANNON.Plane() });
 groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
 world.addBody(groundBody);
 
-// --- PLAYER PHYSICS ---
+// Player Physics
 const playerBody = new CANNON.Body({
-    mass: 1,
-    shape: new CANNON.Sphere(0.5),
+    mass: 1, 
+    shape: new CANNON.Sphere(0.7), 
     position: new CANNON.Vec3(0, 5, 0),
-    fixedRotation: true
+    fixedRotation: true,
+    linearDamping: 0.9
 });
 world.addBody(playerBody);
 
-// --- LOADING ASSETS ---
+// --- ASSET LOADING ---
 const loader = new GLTFLoader();
-let city, playerMesh, truckMesh;
-let currentWeapon = 'fist';
-let isDriving = false;
+let playerMesh, truckMesh, cityMesh;
 let activeMesh = null;
+let isDriving = false;
+let truckRotation = 0;
 
-// 1. Load City
-loader.load('assets/city/scene.gltf', (gltf) => {
-    city = gltf.scene;
-    city.scale.set(1, 1, 1); 
-    city.position.y = -0.1; // Align with physics floor
-    scene.add(city);
-});
-
-// 2. Load Person
-loader.load('assets/RiggedFigure.glb', (gltf) => {
-    playerMesh = gltf.scene;
-    scene.add(playerMesh);
-    activeMesh = playerMesh;
-    document.getElementById('loader').style.display = 'none';
-});
-
-// 3. Load Truck
-loader.load('assets/low-poly_truck_car_drifter.glb', (gltf) => {
-    truckMesh = gltf.scene;
-    truckMesh.position.set(5, 0, 5); // Park it nearby
-    scene.add(truckMesh);
-});
-
-// --- CONTROLS ---
-const keys = {};
-document.addEventListener('keydown', (e) => { 
-    keys[e.key.toLowerCase()] = true; 
-    if(e.key === 'Tab') { e.preventDefault(); document.getElementById('weapon-wheel').style.display = 'flex'; }
-    if(e.key.toLowerCase() === 'f') toggleVehicle();
-});
-document.addEventListener('keyup', (e) => { 
-    keys[e.key.toLowerCase()] = false; 
-    if(e.key === 'Tab') document.getElementById('weapon-wheel').style.display = 'none';
-});
-
-// Weapon Selection Logic
-document.querySelectorAll('.slot').forEach(slot => {
-    slot.onclick = () => {
-        document.querySelectorAll('.slot').forEach(s => s.classList.remove('active'));
-        slot.classList.add('active');
-        currentWeapon = slot.dataset.w;
-        console.log("Equipped:", currentWeapon);
-    };
-});
-
-function toggleVehicle() {
-    const dist = playerMesh.position.distanceTo(truckMesh.position);
-    if (!isDriving && dist < 4) {
-        isDriving = true;
-        playerMesh.visible = false;
-        activeMesh = truckMesh;
-        document.getElementById('status').innerText = "DRIVING";
-    } else if (isDriving) {
-        isDriving = false;
-        playerMesh.visible = true;
-        activeMesh = playerMesh;
-        playerBody.position.set(truckMesh.position.x + 2, 1, truckMesh.position.z);
-        document.getElementById('status').innerText = "WALKING";
+function updateProgress(part) {
+    const p = document.getElementById('progress');
+    const s = document.getElementById('load-status');
+    if(part === 'city') { p.style.width = '33%'; s.innerText = 'City Loaded...'; }
+    if(part === 'truck') { p.style.width = '66%'; s.innerText = 'Truck Loaded...'; }
+    if(part === 'person') { p.style.width = '100%'; s.innerText = 'Ready!'; 
+        setTimeout(() => document.getElementById('loader').style.display = 'none', 500);
     }
 }
 
-// --- GAME LOOP ---
+// 1. Load City
+loader.load('assets/city/city.glb', (gltf) => {
+    cityMesh = gltf.scene;
+    scene.add(cityMesh);
+    updateProgress('city');
+}, undefined, (err) => console.error("City Error:", err));
+
+// 2. Load Truck
+loader.load('assets/low-poly_truck_car_drifter.glb', (gltf) => {
+    truckMesh = gltf.scene;
+    truckMesh.scale.set(TRUCK_SCALE, TRUCK_SCALE, TRUCK_SCALE);
+    truckMesh.position.set(10, 0, 10);
+    scene.add(truckMesh);
+    updateProgress('truck');
+}, undefined, (err) => console.error("Truck Error:", err));
+
+// 3. Load Person (The RiggedFigure)
+loader.load('assets/RiggedFigure.glb', (gltf) => {
+    playerMesh = gltf.scene;
+    playerMesh.scale.set(PLAYER_SCALE, PLAYER_SCALE, PLAYER_SCALE);
+    
+    // Safety: Ensure it's visible
+    playerMesh.traverse(child => { if(child.isMesh) child.castShadow = true; });
+    
+    scene.add(playerMesh);
+    activeMesh = playerMesh;
+    updateProgress('person');
+}, undefined, (err) => console.error("Person Error:", err));
+
+// --- INPUTS ---
+const keys = {};
+document.onkeydown = (e) => {
+    keys[e.key.toLowerCase()] = true;
+    if(e.key === 'Tab') { e.preventDefault(); document.getElementById('weapon-wheel').style.display = 'flex'; }
+    if(e.key === 'f') toggleVehicle();
+};
+document.onkeyup = (e) => {
+    keys[e.key.toLowerCase()] = false;
+    if(e.key === 'Tab') document.getElementById('weapon-wheel').style.display = 'none';
+};
+
+function toggleVehicle() {
+    if(!truckMesh || !playerMesh) return;
+    const dist = playerMesh.position.distanceTo(truckMesh.position);
+    if(!isDriving && dist < 6) {
+        isDriving = true;
+        playerMesh.visible = false;
+        activeMesh = truckMesh;
+        document.getElementById('mode-text').innerText = "DRIVING";
+    } else if(isDriving) {
+        isDriving = false;
+        playerMesh.visible = true;
+        activeMesh = playerMesh;
+        playerBody.position.set(truckMesh.position.x + 4, 2, truckMesh.position.z);
+        document.getElementById('mode-text').innerText = "ON FOOT";
+    }
+}
+
+// Weapon Selection
+document.querySelectorAll('.slot').forEach(slot => {
+    slot.onmousedown = () => {
+        document.querySelectorAll('.slot').forEach(s => s.classList.remove('active'));
+        slot.classList.add('active');
+    };
+});
+
+// --- MAIN LOOP ---
 function animate() {
     requestAnimationFrame(animate);
     world.step(1/60);
 
     if (activeMesh) {
-        // Match 3D model to Physics position
         if (isDriving) {
+            // Truck Logic
             truckMesh.position.copy(playerBody.position);
-            // Simple rotation for car
-            if(keys.a) truckMesh.rotation.y += 0.05;
-            if(keys.d) truckMesh.rotation.y -= 0.05;
+            truckMesh.rotation.y = truckRotation;
+            
+            if(keys['w']) {
+                playerBody.velocity.x += Math.sin(truckRotation) * 0.7;
+                playerBody.velocity.z += Math.cos(truckRotation) * 0.7;
+            }
+            if(keys['s']) {
+                playerBody.velocity.x -= Math.sin(truckRotation) * 0.3;
+                playerBody.velocity.z -= Math.cos(truckRotation) * 0.3;
+            }
+            if(keys['a']) truckRotation += 0.05;
+            if(keys['d']) truckRotation -= 0.05;
         } else {
-            playerMesh.position.copy(playerBody.position);
-            playerMesh.position.y -= 0.5; // Offset for sphere center
+            // Player Logic
+            playerMesh.position.set(playerBody.position.x, playerBody.position.y - 0.7, playerBody.position.z);
+            
+            const speed = 0.2;
+            const camDir = new THREE.Vector3();
+            camera.getWorldDirection(camDir);
+            camDir.y = 0; camDir.normalize();
+
+            if(keys['w']) {
+                playerBody.position.x += camDir.x * speed;
+                playerBody.position.z += camDir.z * speed;
+                playerMesh.rotation.y = Math.atan2(camDir.x, camDir.z);
+            }
+            if(keys['s']) {
+                playerBody.position.x -= camDir.x * speed;
+                playerBody.position.z -= camDir.z * speed;
+            }
         }
 
-        // Movement Logic
-        const moveSpeed = isDriving ? 0.5 : 0.15;
-        const dir = new THREE.Vector3();
-        camera.getWorldDirection(dir);
-        dir.y = 0;
-        dir.normalize();
+        // Camera
+        const camDist = isDriving ? 15 : 8;
+        const camHeight = isDriving ? 6 : 4;
+        const target = playerBody.position;
+        camera.position.lerp(new THREE.Vector3(target.x, target.y + camHeight, target.z + camDist), 0.1);
+        camera.lookAt(target.x, target.y, target.z);
 
-        if (keys.w) {
-            playerBody.position.x += dir.x * moveSpeed;
-            playerBody.position.z += dir.z * moveSpeed;
-            if(!isDriving) activeMesh.rotation.y = Math.atan2(dir.x, dir.z);
-        }
-        if (keys.s) {
-            playerBody.position.x -= dir.x * moveSpeed;
-            playerBody.position.z -= dir.z * moveSpeed;
-        }
-
-        // HUD Update
-        const velocity = Math.sqrt(playerBody.velocity.x**2 + playerBody.velocity.z**2);
-        document.getElementById('mph').innerText = Math.round(velocity * 2.2) + " MPH";
-
-        // Camera Follow
-        const camOffset = isDriving ? new THREE.Vector3(0, 6, 12) : new THREE.Vector3(0, 3, 6);
-        const targetPos = playerBody.position;
-        camera.position.lerp(new THREE.Vector3(targetPos.x, targetPos.y + camOffset.y, targetPos.z + camOffset.z), 0.1);
-        camera.lookAt(targetPos.x, targetPos.y, targetPos.z);
+        // HUD
+        const vel = Math.sqrt(playerBody.velocity.x**2 + playerBody.velocity.z**2);
+        document.getElementById('mph').innerText = Math.round(vel * 2);
     }
 
     renderer.render(scene, camera);
 }
-
 animate();
 
-// Resize handling
 window.onresize = () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
