@@ -2,19 +2,42 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Web GTA: Fix Edition</title>
+    <title>Web GTA - Final Integrated Version</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
-        #hud { position: absolute; top: 20px; left: 20px; color: white; pointer-events: none; text-shadow: 2px 2px #000; }
-        #loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #111; color: white; display: flex; align-items: center; justify-content: center; z-index: 100; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; }
+        
+        /* Debug Console */
+        #virtual-console {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 30%;
+            background: rgba(0, 0, 0, 0.9); color: #0f0; overflow-y: auto;
+            display: none; padding: 10px; font-size: 12px; border-top: 2px solid #0f0;
+            pointer-events: auto; z-index: 2000;
+        }
+
+        #hud { position: absolute; top: 10px; left: 10px; color: #fff; pointer-events: none; text-shadow: 2px 2px #000; }
+        #loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #111; color: #ffcc00; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
+        .loading-bar { width: 200px; height: 10px; border: 1px solid #ffcc00; margin-top: 10px; }
+        #progress { width: 0%; height: 100%; background: #ffcc00; }
     </style>
 </head>
 <body>
 
-<div id="loader"><h1>LOADING ASSETS...</h1></div>
+<div id="loader">
+    <h1>LOS SANTOS LOADING</h1>
+    <div class="loading-bar"><div id="progress"></div></div>
+    <p id="load-msg">Initializing...</p>
+</div>
+
+<div id="virtual-console"><strong>DEBUG LOG (Press = to close)</strong><hr></div>
+
 <div id="hud">
-    <div id="mph">0 MPH</div>
-    <div>F: Enter Truck | M: Respawn Truck</div>
+    <div style="background: rgba(0,0,0,0.6); padding: 15px; border-radius: 5px; border: 1px solid #555;">
+        <b>CONTROLS:</b><br>
+        WASD: Move Character/Truck<br>
+        F: Enter/Exit Truck<br>
+        M: Teleport Truck to You<br>
+        =: Open/Close Debug Console
+    </div>
 </div>
 
 <script type="importmap">
@@ -29,128 +52,154 @@
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import * as CANNON from 'https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js';
 
-// --- 1. THE "NO MORE BLACK SCREEN" SETUP ---
+// --- CONFIGURATION (Adjust scales here) ---
+const SCALES = {
+    player: 1.0,    // If player is tiny, make this 10.0
+    truck: 0.01,    // If truck is huge, make this 0.001
+    city: 1.0       // Most cities are 1.0
+};
+
+// --- DEBUG CONSOLE LOGIC ---
+const vConsole = document.getElementById('virtual-console');
+function debugLog(msg, color = "#0f0") {
+    const div = document.createElement('div');
+    div.style.color = color;
+    div.innerText = `> ${msg}`;
+    vConsole.appendChild(div);
+    vConsole.scrollTop = vConsole.scrollHeight;
+    console.log(msg);
+}
+window.onerror = (e) => debugLog("RUNTIME ERROR: " + e, "red");
+
+// --- SCENE SETUP ---
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87CEEB); // Bright sky blue
-
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+scene.background = new THREE.Color(0x87CEEB); 
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.toneMapping = THREE.ReinhardToneMapping; // Improves lighting colors
+renderer.outputColorSpace = THREE.SRGBColorSpace; // Better colors
 document.body.appendChild(renderer.domElement);
 
-// Extreme Lighting (Prevents Black Screen)
-const ambient = new THREE.AmbientLight(0xffffff, 2.0); // Very bright ambient
+// Extreme Lighting to ensure nothing is black
+const ambient = new THREE.AmbientLight(0xffffff, 2.0);
 scene.add(ambient);
-const sun = new THREE.DirectionalLight(0xffffff, 3.0);
+const sun = new THREE.DirectionalLight(0xffffff, 2.5);
 sun.position.set(100, 200, 100);
 scene.add(sun);
 
-// --- 2. THE "NO MORE FALLING THROUGH" PHYSICS ---
-const world = new CANNON.World();
-world.gravity.set(0, -15, 0);
-
-// Thick Floor Physics
-const groundBody = new CANNON.Body({ 
-    mass: 0, 
-    shape: new CANNON.Box(new CANNON.Vec3(500, 1, 500)) // Uses a thick box instead of a thin plane
-});
-groundBody.position.set(0, -1, 0); 
-world.addBody(groundBody);
-
-const playerBody = new CANNON.Body({
-    mass: 1,
-    shape: new CANNON.Sphere(0.7),
-    position: new CANNON.Vec3(0, 15, 0), // Start high up
-    fixedRotation: true
-});
-world.addBody(playerBody);
-
-// --- 3. ASSET LOADING & SCALING ---
+// --- ASSET LOADING ---
 const loader = new GLTFLoader();
-let playerMesh, truckMesh, cityMesh, mixer;
+let player, truck, city, mixer, walkAction;
 let isDriving = false;
-let activeMesh = null;
-
-// LOAD CITY
-loader.load('assets/city/source/scene.gltf', (gltf) => {
-    cityMesh = gltf.scene;
-    scene.add(cityMesh);
-    console.log("City Loaded");
-});
-
-// LOAD TRUCK (Fixing the "Massive" size)
-loader.load('assets/low-poly_truck_car_drifter.glb', (gltf) => {
-    truckMesh = gltf.scene;
-    // SHRINK THE TRUCK: If 0.1 is still too big, try 0.01
-    truckMesh.scale.set(0.1, 0.1, 0.1); 
-    scene.add(truckMesh);
-    console.log("Truck Loaded");
-});
-
-// LOAD PLAYER
-loader.load('assets/RiggedFigure.glb', (gltf) => {
-    playerMesh = gltf.scene;
-    playerMesh.scale.set(1, 1, 1);
-    scene.add(playerMesh);
-    activeMesh = playerMesh;
-    
-    // Animation
-    mixer = new THREE.AnimationMixer(playerMesh);
-    if(gltf.animations.length > 0) mixer.clipAction(gltf.animations[0]).play();
-
-    document.getElementById('loader').style.display = 'none';
-});
-
-// --- 4. GAME TOOLS ---
 const keys = {};
-window.onkeydown = (e) => { 
-    keys[e.key.toLowerCase()] = true; 
-    if(e.key === 'f') toggleVehicle();
-    if(e.key === 'm') { // M to Spawn Truck at Feet
-        truckMesh.position.set(playerBody.position.x, 2, playerBody.position.z);
+
+function updateProgress(percent, msg) {
+    document.getElementById('progress').style.width = percent + "%";
+    document.getElementById('load-msg').innerText = msg;
+    debugLog(msg);
+}
+
+// 1. Load City Map
+loader.load('assets/city/source/scene.gltf', (gltf) => {
+    city = gltf.scene;
+    city.scale.set(SCALES.city, SCALES.city, SCALES.city);
+    scene.add(city);
+    updateProgress(40, "City map loaded");
+}, undefined, (err) => debugLog("CITY LOAD ERROR: Check assets/city/source/scene.gltf", "red"));
+
+// 2. Load Truck
+loader.load('assets/low-poly_truck_car_drifter.glb', (gltf) => {
+    truck = gltf.scene;
+    truck.scale.set(SCALES.truck, SCALES.truck, SCALES.truck);
+    truck.position.set(10, 0, 10);
+    scene.add(truck);
+    updateProgress(70, "Truck loaded");
+}, undefined, (err) => debugLog("TRUCK LOAD ERROR: File not found", "red"));
+
+// 3. Load Character + Animation
+loader.load('assets/RiggedFigure.glb', (gltf) => {
+    player = gltf.scene;
+    player.scale.set(SCALES.player, SCALES.player, SCALES.player);
+    scene.add(player);
+    
+    // Animation Mixer
+    mixer = new THREE.AnimationMixer(player);
+    if(gltf.animations.length > 0) {
+        walkAction = mixer.clipAction(gltf.animations[0]); // Assumes first animation is walking
+        walkAction.play();
     }
-};
-window.onkeyup = (e) => { keys[e.key.toLowerCase()] = false; };
+    
+    updateProgress(100, "All systems go!");
+    setTimeout(() => document.getElementById('loader').style.display = 'none', 800);
+}, undefined, (err) => debugLog("PLAYER LOAD ERROR: Check RiggedFigure.glb", "red"));
+
+// --- INPUTS ---
+document.addEventListener('keydown', (e) => {
+    keys[e.key.toLowerCase()] = true;
+    if(e.key === '=') vConsole.style.display = vConsole.style.display === 'none' ? 'block' : 'none';
+    if(e.key.toLowerCase() === 'm' && truck) {
+        truck.position.set(player.position.x + 3, 0, player.position.z);
+        debugLog("Truck respawned nearby");
+    }
+    if(e.key.toLowerCase() === 'f') toggleVehicle();
+});
+document.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
 
 function toggleVehicle() {
-    const d = playerMesh.position.distanceTo(truckMesh.position);
-    if(!isDriving && d < 10) {
-        isDriving = true; playerMesh.visible = false; activeMesh = truckMesh;
+    if(!player || !truck) return;
+    const d = player.position.distanceTo(truck.position);
+    if(!isDriving && d < 8) {
+        isDriving = true;
+        player.visible = false;
+        debugLog("Entered Vehicle");
     } else if(isDriving) {
-        isDriving = false; playerMesh.visible = true; activeMesh = playerMesh;
-        playerBody.position.x += 5;
+        isDriving = false;
+        player.visible = true;
+        player.position.set(truck.position.x + 4, 0, truck.position.z);
+        debugLog("Exited Vehicle");
     }
 }
 
-// --- 5. THE LOOP ---
+// --- GAME LOOP ---
 const clock = new THREE.Clock();
 function animate() {
     requestAnimationFrame(animate);
     const delta = clock.getDelta();
-    world.step(1/60);
     if(mixer) mixer.update(delta);
 
-    if(activeMesh) {
-        // Sync Visuals to Physics
-        activeMesh.position.set(playerBody.position.x, playerBody.position.y - 0.7, playerBody.position.z);
+    const activeObj = isDriving ? truck : player;
 
-        // Movement
-        const speed = isDriving ? 1.0 : 0.2;
-        if(keys['w']) playerBody.position.x += speed;
-        if(keys['s']) playerBody.position.x -= speed;
-        if(keys['a']) playerBody.position.z -= speed;
-        if(keys['d']) playerBody.position.z += speed;
+    if(activeObj) {
+        const speed = isDriving ? 0.6 : 0.2;
+        
+        // Basic Movement
+        if(keys['w']) activeObj.position.z -= speed;
+        if(keys['s']) activeObj.position.z += speed;
+        if(keys['a']) activeObj.position.x -= speed;
+        if(keys['d']) activeObj.position.x += speed;
+
+        // Simple Rotation (Face the direction of travel)
+        if(keys['w']) activeObj.rotation.y = Math.PI;
+        if(keys['s']) activeObj.rotation.y = 0;
+        if(keys['a']) activeObj.rotation.y = -Math.PI/2;
+        if(keys['d']) activeObj.rotation.y = Math.PI/2;
 
         // Camera Follow
-        camera.position.set(playerBody.position.x - 15, playerBody.position.y + 10, playerBody.position.z);
-        camera.lookAt(playerBody.position);
+        camera.position.lerp(new THREE.Vector3(activeObj.position.x, activeObj.position.y + 10, activeObj.position.z + 15), 0.1);
+        camera.lookAt(activeObj.position);
     }
+
     renderer.render(scene, camera);
 }
 animate();
+
+// Resize Handler
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
 </script>
 </body>
 </html>
