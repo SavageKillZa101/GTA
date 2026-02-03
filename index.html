@@ -2,23 +2,19 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Web GTA - Final Scaling & Combat</title>
+    <title>Web GTA - Bone Fix</title>
     <style>
         body { margin: 0; overflow: hidden; background: #87CEEB; font-family: monospace; }
         #hud { position: absolute; top: 10px; left: 10px; color: #fff; pointer-events: none; z-index: 10; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 5px; }
-        #weapon-wheel {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 350px; height: 350px; background: radial-gradient(circle, rgba(0,0,0,0.9), transparent);
-            border-radius: 50%; display: none; align-items: center; justify-content: center; z-index: 2000;
-        }
+        #weapon-wheel { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 350px; height: 350px; background: radial-gradient(circle, rgba(0,0,0,0.9), transparent); border-radius: 50%; display: none; align-items: center; justify-content: center; z-index: 2000; }
         .weapon-slot { position: absolute; color: #fff; font-weight: bold; cursor: pointer; pointer-events: auto; padding: 20px; transition: 0.2s; background: rgba(255,255,255,0.1); border-radius: 10px; }
-        .weapon-slot:hover { background: #ffcc00; color: #000; transform: scale(1.2); }
-        #crosshair { position: absolute; top: 50%; left: 50%; width: 14px; height: 14px; border: 2px solid #ff0000; border-radius: 50%; transform: translate(-50%, -50%); display: none; }
+        .weapon-slot:hover { background: #ffcc00; color: #000; }
+        #v-console { position: absolute; bottom: 0; left: 0; width: 100%; height: 25%; background: rgba(0,0,0,0.9); color: #0f0; overflow-y: auto; display: none; padding: 10px; font-size: 11px; z-index: 3000; border-top: 2px solid #0f0; }
     </style>
 </head>
 <body>
 
-<div id="crosshair"></div>
+<div id="v-console"><strong>BONE & ANIMATION DEBUGGER</strong><hr></div>
 <div id="weapon-wheel">
     <div class="weapon-slot" style="top: 0%;" onclick="equip('fist')">FIST</div>
     <div class="weapon-slot" style="right: 0%;" onclick="equip('pistol')">PISTOL</div>
@@ -27,9 +23,8 @@
 </div>
 
 <div id="hud">
-    <b>GTA WEB v3</b><br>
-    WASD: Move | F: Enter Truck<br>
-    TAB: Weapons | LMB: Fire
+    <b>GTA WEB v4 (Bone Fix)</b><br>
+    WASD: Move | F: Enter Truck | =: Debug Console
 </div>
 
 <script type="importmap">
@@ -45,13 +40,9 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-// --- ADJUSTED SCALES BASED ON VIDEO ---
-const SCALES = {
-    city: 1.0,
-    player: 20.0,   // Made much larger
-    truck: 2.0,     // Increased from your previous version
-    weapon: 1.5
-};
+const SCALES = { city: 1.0, player: 20.0, truck: 2.0, weapon: 1.2 };
+const vConsole = document.getElementById('v-console');
+const log = (msg) => { vConsole.innerHTML += `> ${msg}<br>`; vConsole.scrollTop = vConsole.scrollHeight; };
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87CEEB);
@@ -60,7 +51,6 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// Brighter Lighting for Textures
 scene.add(new THREE.AmbientLight(0xffffff, 2.0));
 const sun = new THREE.DirectionalLight(0xffffff, 1.5);
 sun.position.set(50, 100, 50);
@@ -68,100 +58,95 @@ scene.add(sun);
 
 const loader = new GLTFLoader();
 let player, truck, mixer, handBone;
+let animations = {};
+let currentAction;
 let weaponModels = {};
-let currentWeapon = null;
 let isDriving = false;
 const keys = {};
 
-// --- 1. WEAPON SYSTEM ---
+// --- WEAPON EQUIP LOGIC ---
 window.equip = (name) => {
     Object.values(weaponModels).forEach(w => w.visible = false);
-    if(name === 'fist') {
-        currentWeapon = null;
-        document.getElementById('crosshair').style.display = 'none';
-        return;
-    }
-    if(weaponModels[name] && handBone) {
+    if(name !== 'fist' && weaponModels[name] && handBone) {
         handBone.add(weaponModels[name]);
         weaponModels[name].visible = true;
-        weaponModels[name].position.set(0, 0, 0); 
-        currentWeapon = name;
-        document.getElementById('crosshair').style.display = 'block';
+        log(`Equipped ${name} to bone: ${handBone.name}`);
     }
     document.getElementById('weapon-wheel').style.display = 'none';
 };
 
-// --- 2. ASSET LOADING ---
-// City
-loader.load('assets/source/Project.glb', (gltf) => {
-    scene.add(gltf.scene);
-});
+// --- LOADING ---
+loader.load('assets/source/Project.glb', (g) => scene.add(g.scene));
 
-// Player & Animations
 loader.load('assets/RiggedFigure.glb', (gltf) => {
     player = gltf.scene;
     player.scale.set(SCALES.player, SCALES.player, SCALES.player);
     scene.add(player);
     
     mixer = new THREE.AnimationMixer(player);
-    // Auto-play the first animation to stop T-posing
-    if(gltf.animations.length > 0) mixer.clipAction(gltf.animations[0]).play();
-
-    // Find Hand Bone
-    player.traverse(n => { if(n.isBone && n.name.toLowerCase().includes('hand')) handBone = n; });
     
-    // Load weapons from your weapons folder
-    ['pistol', 'm4', 'rpg'].forEach(wName => {
-        loader.load(`assets/weapons/${wName}.glb`, (wGltf) => {
-            const m = wGltf.scene;
+    // 1. Log All Animations
+    log(`Found ${gltf.animations.length} animations:`);
+    gltf.animations.forEach((clip, index) => {
+        const name = clip.name.toLowerCase();
+        animations[name] = mixer.clipAction(clip);
+        log(`- [${index}] Name: ${clip.name}`);
+    });
+
+    // 2. Find Right Hand Bone (Scanning all children)
+    player.traverse(n => {
+        if(n.isBone) {
+            // Mixamo and standard rig names
+            if(n.name.includes("RightHand") || n.name.includes("Hand_R") || n.name.includes("hand.R")) {
+                handBone = n;
+            }
+        }
+    });
+    
+    if(handBone) log(`SUCCESS: Attached to bone [${handBone.name}]`);
+    else log(`ERROR: No hand bone found! Press = to check bone list.`, true);
+
+    // 3. Set Initial State
+    currentAction = Object.values(animations)[0]; // Play first animation found
+    if(currentAction) currentAction.play();
+
+    // Load Weapons
+    ['pistol', 'm4', 'rpg'].forEach(w => {
+        loader.load(`assets/weapons/${w}.glb`, (wg) => {
+            const m = wg.scene;
             m.scale.set(SCALES.weapon, SCALES.weapon, SCALES.weapon);
             m.visible = false;
-            weaponModels[wName] = m;
+            // Manual rotation fix so it points forward
+            m.rotation.x = Math.PI / 2; 
+            weaponModels[w] = m;
         });
     });
 });
 
-// Truck
-loader.load('assets/low-poly_truck_car_drifter.glb', (gltf) => {
-    truck = gltf.scene;
+loader.load('assets/low-poly_truck_car_drifter.glb', (g) => {
+    truck = g.scene;
     truck.scale.set(SCALES.truck, SCALES.truck, SCALES.truck);
     truck.position.set(20, 0, 20);
     scene.add(truck);
 });
 
-// --- 3. INPUTS ---
+// --- INPUTS ---
 document.addEventListener('keydown', e => {
     keys[e.key.toLowerCase()] = true;
     if(e.key === 'Tab') { e.preventDefault(); document.getElementById('weapon-wheel').style.display = 'flex'; }
+    if(e.key === '=') document.getElementById('v-console').style.display = document.getElementById('v-console').style.display === 'none' ? 'block' : 'none';
     if(e.key === 'f') toggleVehicle();
 });
-document.addEventListener('keyup', e => {
-    keys[e.key.toLowerCase()] = false;
-    if(e.key === 'Tab') document.getElementById('weapon-wheel').style.display = 'none';
-});
+document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
 function toggleVehicle() {
     if(!player || !truck) return;
-    const dist = player.position.distanceTo(truck.position);
-    if(!isDriving && dist < 15) {
-        isDriving = true; player.visible = false;
-    } else if(isDriving) {
-        isDriving = false; player.visible = true;
-        player.position.set(truck.position.x + 5, 0, truck.position.z);
-    }
+    const d = player.position.distanceTo(truck.position);
+    if(!isDriving && d < 20) { isDriving = true; player.visible = false; }
+    else if(isDriving) { isDriving = false; player.visible = true; player.position.set(truck.position.x+5, 0, truck.position.z); }
 }
 
-// Shooting Flash
-function shoot() {
-    if(!currentWeapon) return;
-    const flash = new THREE.PointLight(0xffaa00, 10, 10);
-    flash.position.copy(player.position).add(new THREE.Vector3(0, 5, 0));
-    scene.add(flash);
-    setTimeout(() => scene.remove(flash), 50);
-}
-document.addEventListener('mousedown', (e) => { if(e.button === 0) shoot(); });
-
-// --- 4. LOOP ---
+// --- LOOP ---
 const clock = new THREE.Clock();
 function animate() {
     requestAnimationFrame(animate);
@@ -170,13 +155,26 @@ function animate() {
 
     const target = isDriving ? truck : player;
     if(target) {
-        const speed = isDriving ? 1.0 : 0.4;
-        if(keys['w']) target.position.z -= speed;
-        if(keys['s']) target.position.z += speed;
-        if(keys['a']) target.position.x -= speed;
-        if(keys['d']) target.position.x += speed;
+        const speed = isDriving ? 1.2 : 0.5;
+        let isMoving = false;
+        
+        if(keys['w']) { target.position.z -= speed; isMoving = true; }
+        if(keys['s']) { target.position.z += speed; isMoving = true; }
+        if(keys['a']) { target.position.x -= speed; isMoving = true; }
+        if(keys['d']) { target.position.x += speed; isMoving = true; }
 
-        camera.position.lerp(new THREE.Vector3(target.position.x, target.position.y + 15, target.position.z + 30), 0.1);
+        // Animation Switching Logic
+        if(!isDriving && player) {
+            // Change names 'walk' or 'run' if your console shows different names
+            const nextAction = isMoving ? (animations['walk'] || animations['run']) : animations['idle'];
+            if(nextAction && currentAction !== nextAction) {
+                currentAction.crossFadeTo(nextAction, 0.2, true);
+                nextAction.play();
+                currentAction = nextAction;
+            }
+        }
+
+        camera.position.lerp(new THREE.Vector3(target.position.x, target.position.y + 20, target.position.z + 40), 0.1);
         camera.lookAt(target.position);
     }
     renderer.render(scene, camera);
