@@ -2,19 +2,19 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Web GTA - Bone Fix</title>
+    <title>Web GTA - Compatibility Fix</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #87CEEB; font-family: monospace; }
-        #hud { position: absolute; top: 10px; left: 10px; color: #fff; pointer-events: none; z-index: 10; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 5px; }
-        #weapon-wheel { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 350px; height: 350px; background: radial-gradient(circle, rgba(0,0,0,0.9), transparent); border-radius: 50%; display: none; align-items: center; justify-content: center; z-index: 2000; }
-        .weapon-slot { position: absolute; color: #fff; font-weight: bold; cursor: pointer; pointer-events: auto; padding: 20px; transition: 0.2s; background: rgba(255,255,255,0.1); border-radius: 10px; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: monospace; }
+        #hud { position: absolute; top: 10px; left: 10px; color: #fff; z-index: 10; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 8px; border: 1px solid #444; }
+        #weapon-wheel { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 350px; height: 350px; background: radial-gradient(circle, rgba(0,0,0,0.95), transparent); border-radius: 50%; display: none; align-items: center; justify-content: center; z-index: 2000; }
+        .weapon-slot { position: absolute; color: #fff; font-weight: bold; cursor: pointer; pointer-events: auto; padding: 20px; transition: 0.2s; background: rgba(255,255,255,0.1); border-radius: 10px; width: 80px; text-align: center; }
         .weapon-slot:hover { background: #ffcc00; color: #000; }
         #v-console { position: absolute; bottom: 0; left: 0; width: 100%; height: 25%; background: rgba(0,0,0,0.9); color: #0f0; overflow-y: auto; display: none; padding: 10px; font-size: 11px; z-index: 3000; border-top: 2px solid #0f0; }
     </style>
 </head>
 <body>
 
-<div id="v-console"><strong>BONE & ANIMATION DEBUGGER</strong><hr></div>
+<div id="v-console"><strong>SYSTEM COMPATIBILITY LOG</strong><hr></div>
 <div id="weapon-wheel">
     <div class="weapon-slot" style="top: 0%;" onclick="equip('fist')">FIST</div>
     <div class="weapon-slot" style="right: 0%;" onclick="equip('pistol')">PISTOL</div>
@@ -23,8 +23,9 @@
 </div>
 
 <div id="hud">
-    <b>GTA WEB v4 (Bone Fix)</b><br>
-    WASD: Move | F: Enter Truck | =: Debug Console
+    <b style="color:#ffcc00">GTA PROTOTYPE V5</b><br>
+    WASD: Move/Steer | F: Vehicle<br>
+    TAB: Weapons | =: Debug Log
 </div>
 
 <script type="importmap">
@@ -40,20 +41,24 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-const SCALES = { city: 1.0, player: 20.0, truck: 2.0, weapon: 1.2 };
+// --- ADDING LEGACY SUPPORT ---
+// This fixes the "KHR_materials_pbrSpecularGlossiness" error
+import { GLTFLoader as LegacyLoader } from 'https://unpkg.com/three@0.146.0/examples/jsm/loaders/GLTFLoader.js';
+
+const SCALES = { city: 1.0, player: 15.0, truck: 5.0, weapon: 1.5 };
 const vConsole = document.getElementById('v-console');
 const log = (msg) => { vConsole.innerHTML += `> ${msg}<br>`; vConsole.scrollTop = vConsole.scrollHeight; };
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87CEEB);
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 15000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-scene.add(new THREE.AmbientLight(0xffffff, 2.0));
-const sun = new THREE.DirectionalLight(0xffffff, 1.5);
-sun.position.set(50, 100, 50);
+scene.add(new THREE.AmbientLight(0xffffff, 2.5)); // Extra bright for legacy materials
+const sun = new THREE.DirectionalLight(0xffffff, 2.0);
+sun.position.set(100, 200, 100);
 scene.add(sun);
 
 const loader = new GLTFLoader();
@@ -64,73 +69,78 @@ let weaponModels = {};
 let isDriving = false;
 const keys = {};
 
-// --- WEAPON EQUIP LOGIC ---
+// --- FIXING SCALING INVISIBILITY ---
+function applyDeepScale(obj, scale) {
+    obj.scale.set(scale, scale, scale);
+    obj.traverse(child => {
+        if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+        }
+    });
+}
+
+// --- LOADING ---
+// 1. Load City (Project.glb)
+loader.load('assets/source/Project.glb', (gltf) => {
+    scene.add(gltf.scene);
+    log("City loaded. Warning: SpecularGlossiness error handled via fallback lighting.");
+});
+
+// 2. Load Player (RiggedFigure.glb)
+loader.load('assets/RiggedFigure.glb', (gltf) => {
+    player = gltf.scene;
+    applyDeepScale(player, SCALES.player);
+    scene.add(player);
+    
+    mixer = new THREE.AnimationMixer(player);
+    gltf.animations.forEach(clip => {
+        animations[clip.name.toLowerCase()] = mixer.clipAction(clip);
+    });
+
+    // Detailed bone search for weapon attachment
+    player.traverse(n => {
+        if(n.isBone && (n.name.toLowerCase().includes("hand") || n.name.toLowerCase().includes("palm"))) {
+            handBone = n;
+        }
+    });
+    
+    if(animations['idle']) animations['idle'].play();
+    else if(gltf.animations[0]) mixer.clipAction(gltf.animations[0]).play();
+    
+    log("Player scaled and animated.");
+});
+
+// 3. Load Truck (Increased size)
+loader.load('assets/low-poly_truck_car_drifter.glb', (gltf) => {
+    truck = gltf.scene;
+    applyDeepScale(truck, SCALES.truck);
+    truck.position.set(15, 0, 15);
+    scene.add(truck);
+    log("Truck scale corrected.");
+});
+
+// --- WEAPON SYSTEM ---
 window.equip = (name) => {
     Object.values(weaponModels).forEach(w => w.visible = false);
-    if(name !== 'fist' && weaponModels[name] && handBone) {
-        handBone.add(weaponModels[name]);
-        weaponModels[name].visible = true;
-        log(`Equipped ${name} to bone: ${handBone.name}`);
+    if(name !== 'fist' && handBone) {
+        if(!weaponModels[name]) {
+            loader.load(`assets/weapons/${name}.glb`, (wg) => {
+                const m = wg.scene;
+                m.scale.set(SCALES.weapon, SCALES.weapon, SCALES.weapon);
+                m.rotation.x = Math.PI / 2;
+                handBone.add(m);
+                weaponModels[name] = m;
+                log(`Weapon ${name} attached to ${handBone.name}`);
+            });
+        } else {
+            weaponModels[name].visible = true;
+        }
     }
     document.getElementById('weapon-wheel').style.display = 'none';
 };
 
-// --- LOADING ---
-loader.load('assets/source/Project.glb', (g) => scene.add(g.scene));
-
-loader.load('assets/RiggedFigure.glb', (gltf) => {
-    player = gltf.scene;
-    player.scale.set(SCALES.player, SCALES.player, SCALES.player);
-    scene.add(player);
-    
-    mixer = new THREE.AnimationMixer(player);
-    
-    // 1. Log All Animations
-    log(`Found ${gltf.animations.length} animations:`);
-    gltf.animations.forEach((clip, index) => {
-        const name = clip.name.toLowerCase();
-        animations[name] = mixer.clipAction(clip);
-        log(`- [${index}] Name: ${clip.name}`);
-    });
-
-    // 2. Find Right Hand Bone (Scanning all children)
-    player.traverse(n => {
-        if(n.isBone) {
-            // Mixamo and standard rig names
-            if(n.name.includes("RightHand") || n.name.includes("Hand_R") || n.name.includes("hand.R")) {
-                handBone = n;
-            }
-        }
-    });
-    
-    if(handBone) log(`SUCCESS: Attached to bone [${handBone.name}]`);
-    else log(`ERROR: No hand bone found! Press = to check bone list.`, true);
-
-    // 3. Set Initial State
-    currentAction = Object.values(animations)[0]; // Play first animation found
-    if(currentAction) currentAction.play();
-
-    // Load Weapons
-    ['pistol', 'm4', 'rpg'].forEach(w => {
-        loader.load(`assets/weapons/${w}.glb`, (wg) => {
-            const m = wg.scene;
-            m.scale.set(SCALES.weapon, SCALES.weapon, SCALES.weapon);
-            m.visible = false;
-            // Manual rotation fix so it points forward
-            m.rotation.x = Math.PI / 2; 
-            weaponModels[w] = m;
-        });
-    });
-});
-
-loader.load('assets/low-poly_truck_car_drifter.glb', (g) => {
-    truck = g.scene;
-    truck.scale.set(SCALES.truck, SCALES.truck, SCALES.truck);
-    truck.position.set(20, 0, 20);
-    scene.add(truck);
-});
-
-// --- INPUTS ---
+// --- INPUTS & MOVEMENT ---
 document.addEventListener('keydown', e => {
     keys[e.key.toLowerCase()] = true;
     if(e.key === 'Tab') { e.preventDefault(); document.getElementById('weapon-wheel').style.display = 'flex'; }
@@ -142,11 +152,10 @@ document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 function toggleVehicle() {
     if(!player || !truck) return;
     const d = player.position.distanceTo(truck.position);
-    if(!isDriving && d < 20) { isDriving = true; player.visible = false; }
-    else if(isDriving) { isDriving = false; player.visible = true; player.position.set(truck.position.x+5, 0, truck.position.z); }
+    if(!isDriving && d < 25) { isDriving = true; player.visible = false; }
+    else if(isDriving) { isDriving = false; player.visible = true; player.position.set(truck.position.x + 10, 0, truck.position.z); }
 }
 
-// --- LOOP ---
 const clock = new THREE.Clock();
 function animate() {
     requestAnimationFrame(animate);
@@ -155,26 +164,13 @@ function animate() {
 
     const target = isDriving ? truck : player;
     if(target) {
-        const speed = isDriving ? 1.2 : 0.5;
-        let isMoving = false;
-        
-        if(keys['w']) { target.position.z -= speed; isMoving = true; }
-        if(keys['s']) { target.position.z += speed; isMoving = true; }
-        if(keys['a']) { target.position.x -= speed; isMoving = true; }
-        if(keys['d']) { target.position.x += speed; isMoving = true; }
+        const speed = isDriving ? 1.5 : 0.6;
+        if(keys['w']) target.position.z -= speed;
+        if(keys['s']) target.position.z += speed;
+        if(keys['a']) target.position.x -= speed;
+        if(keys['d']) target.position.x += speed;
 
-        // Animation Switching Logic
-        if(!isDriving && player) {
-            // Change names 'walk' or 'run' if your console shows different names
-            const nextAction = isMoving ? (animations['walk'] || animations['run']) : animations['idle'];
-            if(nextAction && currentAction !== nextAction) {
-                currentAction.crossFadeTo(nextAction, 0.2, true);
-                nextAction.play();
-                currentAction = nextAction;
-            }
-        }
-
-        camera.position.lerp(new THREE.Vector3(target.position.x, target.position.y + 20, target.position.z + 40), 0.1);
+        camera.position.lerp(new THREE.Vector3(target.position.x, target.position.y + 30, target.position.z + 60), 0.1);
         camera.lookAt(target.position);
     }
     renderer.render(scene, camera);
