@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Web GTA - Compatibility Fix</title>
+    <title>Web GTA - Final Compatibility Fix</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: monospace; }
         #hud { position: absolute; top: 10px; left: 10px; color: #fff; z-index: 10; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 8px; border: 1px solid #444; }
@@ -14,7 +14,7 @@
 </head>
 <body>
 
-<div id="v-console"><strong>SYSTEM COMPATIBILITY LOG</strong><hr></div>
+<div id="v-console"><strong>BONE LIST (Check here for hand name)</strong><hr></div>
 <div id="weapon-wheel">
     <div class="weapon-slot" style="top: 0%;" onclick="equip('fist')">FIST</div>
     <div class="weapon-slot" style="right: 0%;" onclick="equip('pistol')">PISTOL</div>
@@ -23,8 +23,8 @@
 </div>
 
 <div id="hud">
-    <b style="color:#ffcc00">GTA PROTOTYPE V5</b><br>
-    WASD: Move/Steer | F: Vehicle<br>
+    <b style="color:#ffcc00">GTA ENGINE V6</b><br>
+    WASD: Move | F: Enter Truck<br>
     TAB: Weapons | =: Debug Log
 </div>
 
@@ -41,83 +41,73 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-// --- ADDING LEGACY SUPPORT ---
-// This fixes the "KHR_materials_pbrSpecularGlossiness" error
-import { GLTFLoader as LegacyLoader } from 'https://unpkg.com/three@0.146.0/examples/jsm/loaders/GLTFLoader.js';
-
-const SCALES = { city: 1.0, player: 15.0, truck: 5.0, weapon: 1.5 };
+// --- CONFIG ---
+const SCALES = { city: 1.0, player: 20.0, truck: 5.0, weapon: 1.5 };
 const vConsole = document.getElementById('v-console');
 const log = (msg) => { vConsole.innerHTML += `> ${msg}<br>`; vConsole.scrollTop = vConsole.scrollHeight; };
 
+// --- SCENE SETUP ---
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87CEEB);
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 15000);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 20000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-scene.add(new THREE.AmbientLight(0xffffff, 2.5)); // Extra bright for legacy materials
+// Brighter lights to counter the SpecularGlossiness error
+scene.add(new THREE.AmbientLight(0xffffff, 3.0));
 const sun = new THREE.DirectionalLight(0xffffff, 2.0);
 sun.position.set(100, 200, 100);
 scene.add(sun);
 
 const loader = new GLTFLoader();
 let player, truck, mixer, handBone;
-let animations = {};
-let currentAction;
 let weaponModels = {};
 let isDriving = false;
 const keys = {};
 
-// --- FIXING SCALING INVISIBILITY ---
-function applyDeepScale(obj, scale) {
-    obj.scale.set(scale, scale, scale);
-    obj.traverse(child => {
-        if (child.isMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-        }
-    });
-}
+// --- LOADING ASSETS ---
 
-// --- LOADING ---
-// 1. Load City (Project.glb)
+// 1. City
 loader.load('assets/source/Project.glb', (gltf) => {
     scene.add(gltf.scene);
-    log("City loaded. Warning: SpecularGlossiness error handled via fallback lighting.");
+    log("City loaded. Ignore SpecularGlossiness warning.");
 });
 
-// 2. Load Player (RiggedFigure.glb)
+// 2. Character & Bone Mapping
 loader.load('assets/RiggedFigure.glb', (gltf) => {
     player = gltf.scene;
-    applyDeepScale(player, SCALES.player);
+    player.scale.set(SCALES.player, SCALES.player, SCALES.player);
     scene.add(player);
     
     mixer = new THREE.AnimationMixer(player);
-    gltf.animations.forEach(clip => {
-        animations[clip.name.toLowerCase()] = mixer.clipAction(clip);
-    });
+    if(gltf.animations.length > 0) {
+        mixer.clipAction(gltf.animations[0]).play(); // Plays 'animation_0'
+        log("Playing animation_0");
+    }
 
-    // Detailed bone search for weapon attachment
+    // MAP ALL BONES TO CONSOLE
+    log("--- STARTING BONE SCAN ---");
     player.traverse(n => {
-        if(n.isBone && (n.name.toLowerCase().includes("hand") || n.name.toLowerCase().includes("palm"))) {
-            handBone = n;
+        if(n.isBone) {
+            log(`Found Bone: ${n.name}`);
+            // Check for common hand names or generic "node" names
+            if(n.name.toLowerCase().includes("hand") || n.name.includes("Bone.007") || n.name.includes("Palm")) {
+                handBone = n;
+            }
         }
     });
     
-    if(animations['idle']) animations['idle'].play();
-    else if(gltf.animations[0]) mixer.clipAction(gltf.animations[0]).play();
-    
-    log("Player scaled and animated.");
+    if(handBone) log(`AUTO-ATTACHED TO: ${handBone.name}`);
+    else log("NO HAND BONE FOUND. Look at the list above and tell me the name of the hand bone!", true);
 });
 
-// 3. Load Truck (Increased size)
+// 3. Truck
 loader.load('assets/low-poly_truck_car_drifter.glb', (gltf) => {
     truck = gltf.scene;
-    applyDeepScale(truck, SCALES.truck);
-    truck.position.set(15, 0, 15);
+    truck.scale.set(SCALES.truck, SCALES.truck, SCALES.truck);
+    truck.position.set(30, 0, 30);
     scene.add(truck);
-    log("Truck scale corrected.");
 });
 
 // --- WEAPON SYSTEM ---
@@ -128,7 +118,7 @@ window.equip = (name) => {
             loader.load(`assets/weapons/${name}.glb`, (wg) => {
                 const m = wg.scene;
                 m.scale.set(SCALES.weapon, SCALES.weapon, SCALES.weapon);
-                m.rotation.x = Math.PI / 2;
+                m.rotation.x = Math.PI / 2; // Point weapon forward
                 handBone.add(m);
                 weaponModels[name] = m;
                 log(`Weapon ${name} attached to ${handBone.name}`);
@@ -140,11 +130,11 @@ window.equip = (name) => {
     document.getElementById('weapon-wheel').style.display = 'none';
 };
 
-// --- INPUTS & MOVEMENT ---
+// --- CONTROLS ---
 document.addEventListener('keydown', e => {
     keys[e.key.toLowerCase()] = true;
     if(e.key === 'Tab') { e.preventDefault(); document.getElementById('weapon-wheel').style.display = 'flex'; }
-    if(e.key === '=') document.getElementById('v-console').style.display = document.getElementById('v-console').style.display === 'none' ? 'block' : 'none';
+    if(e.key === '=') vConsole.style.display = vConsole.style.display === 'none' ? 'block' : 'none';
     if(e.key === 'f') toggleVehicle();
 });
 document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
@@ -152,10 +142,11 @@ document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 function toggleVehicle() {
     if(!player || !truck) return;
     const d = player.position.distanceTo(truck.position);
-    if(!isDriving && d < 25) { isDriving = true; player.visible = false; }
+    if(!isDriving && d < 30) { isDriving = true; player.visible = false; }
     else if(isDriving) { isDriving = false; player.visible = true; player.position.set(truck.position.x + 10, 0, truck.position.z); }
 }
 
+// --- MAIN LOOP ---
 const clock = new THREE.Clock();
 function animate() {
     requestAnimationFrame(animate);
@@ -170,7 +161,7 @@ function animate() {
         if(keys['a']) target.position.x -= speed;
         if(keys['d']) target.position.x += speed;
 
-        camera.position.lerp(new THREE.Vector3(target.position.x, target.position.y + 30, target.position.z + 60), 0.1);
+        camera.position.lerp(new THREE.Vector3(target.position.x, target.position.y + 40, target.position.z + 80), 0.1);
         camera.lookAt(target.position);
     }
     renderer.render(scene, camera);
