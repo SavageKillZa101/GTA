@@ -7,97 +7,100 @@ export class Player {
         this.camera = camera;
         this.mesh = null;
         
-        // Physics State
+        // --- Fix 1: Stats & HUD ---
+        this.health = 100;
+        this.money = 500;
+        this.isDead = false;
+
+        // --- Fix 2: Better Scaling & Physics ---
         this.position = new THREE.Vector3(0, 1, 0);
         this.velocity = new THREE.Vector3();
-        this.yaw = 0; // Horizontal rotation
-        this.pitch = 0; // Vertical rotation
-        
-        // Constants
-        this.speed = 12;
-        this.jumpForce = 15;
-        this.gravity = -40;
-        this.onGround = false;
+        this.yaw = 0;
+        this.speed = 10; // Lowered for better control
+        this.onGround = true;
 
         this.loadModel();
     }
 
     loadModel() {
         const loader = new GLTFLoader();
-        // Vite will look in the /public/assets folder
-        loader.load('/assets/RiggedFigure.glb', (gltf) => {
+        // Vite path (assumes RiggedFigure.glb is in public/)
+        loader.load('/RiggedFigure.glb', (gltf) => {
             this.mesh = gltf.scene;
-            this.mesh.scale.set(20, 20, 20);
+            
+            // --- Fix 3: Size adjustment ---
+            // If your character was massive, reduce 20.0 to 1.0 or 2.0
+            this.mesh.scale.set(1.5, 1.5, 1.5); 
+            
             this.scene.add(this.mesh);
         });
     }
 
+    takeDamage(amount) {
+        if (this.isDead) return;
+        this.health -= amount;
+        
+        // Update the HUD we made in index.html
+        const healthEl = document.getElementById('health');
+        if (healthEl) {
+            healthEl.textContent = Math.ceil(this.health);
+            healthEl.style.color = this.health < 30 ? '#ff0000' : '#2b9e2b';
+        }
+
+        if (this.health <= 0) this.die();
+    }
+
+    die() {
+        this.isDead = true;
+        alert("WASTED");
+        window.location.reload(); // Quick restart
+    }
+
     update(dt, keys, mouse) {
-        if (!this.mesh) return;
+        if (!this.mesh || this.isDead) return;
 
         this.handleRotation(mouse);
         this.handleMovement(dt, keys);
-        this.applyPhysics(dt);
-        this.updateCamera();
         
-        // Sync the 3D model with our physics position
+        // Gravity logic
+        this.velocity.y -= 30 * dt; 
+        this.position.y += this.velocity.y * dt;
+
+        if (this.position.y <= 0) {
+            this.position.y = 0;
+            this.velocity.y = 0;
+            this.onGround = true;
+        }
+
         this.mesh.position.copy(this.position);
+        this.updateCamera(dt);
     }
 
     handleRotation(mouse) {
-        // mouse.x and mouse.y come from your Input.js listener
         this.yaw -= mouse.x * 0.002;
-        this.pitch -= mouse.y * 0.002;
-        this.pitch = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, this.pitch));
     }
 
     handleMovement(dt, keys) {
-        const moveDir = new THREE.Vector3();
-        
+        let moveDir = new THREE.Vector3();
         if (keys['w']) moveDir.z -= 1;
         if (keys['s']) moveDir.z += 1;
         if (keys['a']) moveDir.x -= 1;
         if (keys['d']) moveDir.x += 1;
 
         if (moveDir.length() > 0) {
-            moveDir.normalize();
-            // Rotate movement relative to where the camera is facing
-            moveDir.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
+            moveDir.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
+            this.position.addScaledVector(moveDir, this.speed * dt);
             
-            const currentSpeed = keys['shift'] ? this.speed * 2 : this.speed;
-            this.position.addScaledVector(moveDir, currentSpeed * dt);
-
-            // Make the character face the direction of movement
-            const targetRotation = Math.atan2(moveDir.x, moveDir.z);
-            this.mesh.rotation.y = THREE.MathUtils.lerp(this.mesh.rotation.y, targetRotation, dt * 10);
-        }
-
-        if (keys[' '] && this.onGround) {
-            this.velocity.y = this.jumpForce;
-            this.onGround = false;
+            // Make mesh face the direction of movement
+            const angle = Math.atan2(moveDir.x, moveDir.z);
+            this.mesh.rotation.y = angle;
         }
     }
 
-    applyPhysics(dt) {
-        // Apply gravity
-        this.velocity.y += this.gravity * dt;
-        this.position.y += this.velocity.y * dt;
-
-        // Simple floor collision (y=0)
-        if (this.position.y <= 1) {
-            this.position.y = 1;
-            this.velocity.y = 0;
-            this.onGround = true;
-        }
-    }
-
-    updateCamera() {
-        // Third-person camera offset
-        const offset = new THREE.Vector3(0, 5, 12); 
+    updateCamera(dt) {
+        const offset = new THREE.Vector3(0, 3, 6); // Closer camera for smaller character
         offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
-        
-        const targetCameraPos = this.position.clone().add(offset);
-        this.camera.position.lerp(targetCameraPos, 0.1); // Smooth follow
-        this.camera.lookAt(this.position.clone().add(new THREE.Vector3(0, 2, 0)));
+        this.camera.position.lerp(this.position.clone().add(offset), 0.1);
+        this.camera.lookAt(this.position.x, this.position.y + 1.5, this.position.z);
     }
 }
