@@ -8,79 +8,47 @@ class Game {
         this.clock = new THREE.Clock();
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
-        
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.shadowMap.enabled = true;
         document.body.appendChild(this.renderer.domElement);
 
         this.input = new Input();
         this.world = new World(this.scene);
         this.player = new Player(this.scene, this.camera);
-
-        // Wanted Level & AI Management
-        this.wantedLevel = 0;
-        this.enemies = []; // Ensure World.js pushes NPCs here
         
-        window.addEventListener('resize', () => this.onWindowResize());
+        this.wantedLevel = 0;
+        this.enemies = []; // Cops/Enemies go here
+
         this.animate();
     }
 
-    updateWantedUI() {
-        const stars = document.getElementById('wanted-stars');
-        stars.innerHTML = '★'.repeat(this.wantedLevel);
-    }
-
-    // Call this if the player attacks an NPC
-    commitCrime() {
-        if (this.wantedLevel === 0) {
-            this.wantedLevel = 1;
-            this.updateWantedUI();
-        }
-    }
-
-    updateMinimap() {
-        const canvas = document.getElementById('minimap-canvas');
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Player (Green)
-        ctx.fillStyle = "#00ff00";
-        ctx.beginPath();
-        ctx.arc(canvas.width / 2, canvas.height / 2, 5, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Enemies/Cops (Red) - Only show if wanted
-        if (this.wantedLevel > 0) {
-            this.enemies.forEach(npc => {
-                const relX = (npc.position.x - this.player.position.x) + (canvas.width / 2);
-                const relZ = (npc.position.z - this.player.position.z) + (canvas.height / 2);
-                ctx.fillStyle = "#ff0000";
-                ctx.fillRect(relX, relZ, 4, 4);
-            });
-        }
+    // Call this when you want to trigger a chase
+    setWantedLevel(level) {
+        this.wantedLevel = level;
+        document.getElementById('wanted-stars').innerHTML = '★'.repeat(level);
     }
 
     animate() {
         requestAnimationFrame(() => this.animate());
         const dt = this.clock.getDelta();
 
+        // 1. Update Player (Fixed Scale happens inside Player.js)
         this.player.update(dt, this.input.keys, this.input.mouse);
 
-        // Wanted Logic: Enemies only chase if wantedLevel > 0
+        // 2. Chase Logic: Only chase if Wanted
         if (this.wantedLevel > 0 && !this.player.isDead) {
             this.enemies.forEach(npc => {
                 const dist = npc.position.distanceTo(this.player.position);
                 
-                // Chase
+                // Move towards player
                 const dir = new THREE.Vector3().subVectors(this.player.position, npc.position).normalize();
                 npc.position.addScaledVector(dir, 10 * dt);
                 npc.lookAt(this.player.position);
 
-                // Attack Cooldown (Prevents instant death)
+                // FIX: Attack Cooldown (Prevents dying in 1 hit)
                 if (dist < 3) {
                     const now = Date.now();
-                    if (!npc.lastHit || now - npc.lastHit > 1200) {
+                    if (!npc.lastHit || now - npc.lastHit > 1000) {
                         this.player.takeDamage(15);
                         npc.lastHit = now;
                     }
@@ -89,14 +57,19 @@ class Game {
         }
 
         this.updateMinimap();
-        this.input.clearMouse();
         this.renderer.render(this.scene, this.camera);
     }
 
-    onWindowResize() {
-        this.camera.aspect = window.innerWidth / window.innerHeight;
-        this.camera.updateProjectionMatrix();
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
+    updateMinimap() {
+        const canvas = document.getElementById('minimap-canvas');
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Player dot
+        ctx.fillStyle = "#00ff00";
+        ctx.beginPath();
+        ctx.arc(canvas.width/2, canvas.height/2, 5, 0, Math.PI*2);
+        ctx.fill();
     }
 }
 
