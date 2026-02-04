@@ -18,9 +18,9 @@ class Game {
         this.world = new World(this.scene);
         this.player = new Player(this.scene, this.camera);
 
-        // Wanted Level System
+        // Wanted Level & AI Management
         this.wantedLevel = 0;
-        this.enemies = []; // This should be populated by your World.js
+        this.enemies = []; // Ensure World.js pushes NPCs here
         
         window.addEventListener('resize', () => this.onWindowResize());
         this.animate();
@@ -31,31 +31,30 @@ class Game {
         stars.innerHTML = '★'.repeat(this.wantedLevel);
     }
 
-    // Call this function if player hits an NPC or steals a car
-    triggerCrime() {
+    // Call this if the player attacks an NPC
+    commitCrime() {
         if (this.wantedLevel === 0) {
             this.wantedLevel = 1;
             this.updateWantedUI();
-            console.log("Wanted! Police are responding.");
         }
     }
 
     updateMinimap() {
-        const canvas = document.getElementById('minimap');
+        const canvas = document.getElementById('minimap-canvas');
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Draw Player dot (Green)
+        // Player (Green)
         ctx.fillStyle = "#00ff00";
         ctx.beginPath();
         ctx.arc(canvas.width / 2, canvas.height / 2, 5, 0, Math.PI * 2);
         ctx.fill();
 
-        // Draw Cops (Red dots) if wanted
+        // Enemies/Cops (Red) - Only show if wanted
         if (this.wantedLevel > 0) {
-            this.enemies.forEach(cop => {
-                const relX = (cop.position.x - this.player.position.x) + (canvas.width / 2);
-                const relZ = (cop.position.z - this.player.position.z) + (canvas.height / 2);
+            this.enemies.forEach(npc => {
+                const relX = (npc.position.x - this.player.position.x) + (canvas.width / 2);
+                const relZ = (npc.position.z - this.player.position.z) + (canvas.height / 2);
                 ctx.fillStyle = "#ff0000";
                 ctx.fillRect(relX, relZ, 4, 4);
             });
@@ -66,27 +65,24 @@ class Game {
         requestAnimationFrame(() => this.animate());
         const dt = this.clock.getDelta();
 
-        // 1. Update Player
         this.player.update(dt, this.input.keys, this.input.mouse);
 
-        // 2. Enemy/Cop Logic
-        if (this.wantedLevel > 0) {
-            this.enemies.forEach(cop => {
-                const dist = cop.position.distanceTo(this.player.position);
+        // Wanted Logic: Enemies only chase if wantedLevel > 0
+        if (this.wantedLevel > 0 && !this.player.isDead) {
+            this.enemies.forEach(npc => {
+                const dist = npc.position.distanceTo(this.player.position);
                 
-                // Only chase if player is alive
-                if (!this.player.isDead) {
-                    const dir = new THREE.Vector3().subVectors(this.player.position, cop.position).normalize();
-                    cop.position.addScaledVector(dir, 8 * dt); // Cop speed
-                    cop.lookAt(this.player.position);
+                // Chase
+                const dir = new THREE.Vector3().subVectors(this.player.position, npc.position).normalize();
+                npc.position.addScaledVector(dir, 10 * dt);
+                npc.lookAt(this.player.position);
 
-                    // Damage with cooldown (prevents instant death)
-                    if (dist < 2.5) {
-                        const now = Date.now();
-                        if (!cop.lastHit || now - cop.lastHit > 1000) {
-                            this.player.takeDamage(15);
-                            cop.lastHit = now;
-                        }
+                // Attack Cooldown (Prevents instant death)
+                if (dist < 3) {
+                    const now = Date.now();
+                    if (!npc.lastHit || now - npc.lastHit > 1200) {
+                        this.player.takeDamage(15);
+                        npc.lastHit = now;
                     }
                 }
             });
