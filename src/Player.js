@@ -6,32 +6,24 @@ export class Player {
         this.scene = scene;
         this.camera = camera;
         this.mesh = null;
-        
-        // --- Fix 1: Stats & HUD ---
         this.health = 100;
-        this.money = 500;
         this.isDead = false;
-
-        // --- Fix 2: Better Scaling & Physics ---
+        
+        // Physics constants
         this.position = new THREE.Vector3(0, 1, 0);
         this.velocity = new THREE.Vector3();
         this.yaw = 0;
-        this.speed = 10; // Lowered for better control
-        this.onGround = true;
+        this.speed = 10; 
 
         this.loadModel();
     }
 
     loadModel() {
         const loader = new GLTFLoader();
-        // Vite path (assumes RiggedFigure.glb is in public/)
         loader.load('/RiggedFigure.glb', (gltf) => {
             this.mesh = gltf.scene;
-            
-            // --- Fix 3: Size adjustment ---
-            // If your character was massive, reduce 20.0 to 1.0 or 2.0
+            // FIX: Smaller scale so you aren't a giant
             this.mesh.scale.set(1.5, 1.5, 1.5); 
-            
             this.scene.add(this.mesh);
         });
     }
@@ -40,47 +32,41 @@ export class Player {
         if (this.isDead) return;
         this.health -= amount;
         
-        // Update the HUD we made in index.html
+        // Update HUD
         const healthEl = document.getElementById('health');
-        if (healthEl) {
-            healthEl.textContent = Math.ceil(this.health);
-            healthEl.style.color = this.health < 30 ? '#ff0000' : '#2b9e2b';
-        }
+        if (healthEl) healthEl.textContent = Math.ceil(this.health);
 
         if (this.health <= 0) this.die();
     }
 
     die() {
         this.isDead = true;
-        alert("WASTED");
-        window.location.reload(); // Quick restart
+        // Show a "Wasted" overlay instead of an alert
+        const hud = document.getElementById('hud');
+        hud.innerHTML += `<div id="wasted" style="position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); color:red; font-size:100px; font-weight:bold; text-shadow: 5px 5px #000;">WASTED</div>`;
+        
+        // Respawn after 3 seconds
+        setTimeout(() => this.respawn(), 3000);
+    }
+
+    respawn() {
+        this.health = 100;
+        this.isDead = false;
+        this.position.set(0, 1, 0); // Back to start
+        
+        // Clean up UI
+        const wastedText = document.getElementById('wasted');
+        if (wastedText) wastedText.remove();
+        
+        const healthEl = document.getElementById('health');
+        if (healthEl) healthEl.textContent = "100";
     }
 
     update(dt, keys, mouse) {
         if (!this.mesh || this.isDead) return;
 
-        this.handleRotation(mouse);
-        this.handleMovement(dt, keys);
-        
-        // Gravity logic
-        this.velocity.y -= 30 * dt; 
-        this.position.y += this.velocity.y * dt;
-
-        if (this.position.y <= 0) {
-            this.position.y = 0;
-            this.velocity.y = 0;
-            this.onGround = true;
-        }
-
-        this.mesh.position.copy(this.position);
-        this.updateCamera(dt);
-    }
-
-    handleRotation(mouse) {
+        // Rotation and Movement
         this.yaw -= mouse.x * 0.002;
-    }
-
-    handleMovement(dt, keys) {
         let moveDir = new THREE.Vector3();
         if (keys['w']) moveDir.z -= 1;
         if (keys['s']) moveDir.z += 1;
@@ -90,17 +76,17 @@ export class Player {
         if (moveDir.length() > 0) {
             moveDir.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
             this.position.addScaledVector(moveDir, this.speed * dt);
-            
-            // Make mesh face the direction of movement
-            const angle = Math.atan2(moveDir.x, moveDir.z);
-            this.mesh.rotation.y = angle;
+            this.mesh.rotation.y = Math.atan2(moveDir.x, moveDir.z);
         }
-    }
 
-    updateCamera(dt) {
-        const offset = new THREE.Vector3(0, 3, 6); // Closer camera for smaller character
-        offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
-        this.camera.position.lerp(this.position.clone().add(offset), 0.1);
-        this.camera.lookAt(this.position.x, this.position.y + 1.5, this.position.z);
+        // Simple Gravity
+        this.velocity.y -= 30 * dt;
+        this.position.y += this.velocity.y * dt;
+        if (this.position.y < 0) {
+            this.position.y = 0;
+            this.velocity.y = 0;
+        }
+
+        this.mesh.position.copy(this.position);
     }
 }
