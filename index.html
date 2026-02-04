@@ -2,223 +2,73 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Web GTA - Fire Edition 🔥</title>
+    <title>Web GTA - Optimized Edition 🔥</title>
     <style>
         * { margin: 0; padding: 0; }
-        body {
-            overflow: hidden;
-            font-family: 'Courier New', monospace;
-            background: #000;
-        }
+        body { overflow: hidden; font-family: 'Courier New', monospace; background: #000; }
         canvas { display: block; }
-       
         #hud {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            color: #0f0;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 15px;
-            border-radius: 10px;
-            border: 2px solid #0f0;
-            z-index: 100;
-            font-size: 14px;
-            min-width: 300px;
+            position: absolute; top: 20px; left: 20px; color: #0f0;
+            background: rgba(0,0,0,0.8); padding: 15px; border-radius: 10px;
+            border: 2px solid #0f0; z-index: 100; font-size: 14px; min-width: 300px;
             backdrop-filter: blur(5px);
         }
-       
-        #hud h1 {
-            color: #ffcc00;
-            margin-bottom: 10px;
-            text-shadow: 0 0 10px #ffcc00;
+        #hud h1 { color: #ffcc00; margin-bottom: 10px; text-shadow: 0 0 10px #ffcc00; }
+        #hud div { margin: 5px 0; }
+        #hud .key { display: inline-block; background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px; margin: 0 5px; border: 1px solid #0f0; }
+        #weapon-wheel { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 400px; height: 400px;
+            background: radial-gradient(circle, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.8) 70%, transparent 100%);
+            border-radius: 50%; display: none; align-items: center; justify-content: center; z-index: 200;
+            border: 3px solid #ffcc00; box-shadow: 0 0 50px rgba(255,204,0,0.5);
         }
-       
-        #hud div {
-            margin: 5px 0;
+        .weapon-slot { position: absolute; color: #fff; font-weight: bold; cursor: pointer; padding: 20px;
+            transition: all 0.3s; background: rgba(255,255,255,0.1); border-radius: 50%; width: 80px; height: 80px;
+            display: flex; align-items: center; justify-content: center; border: 2px solid rgba(255,255,255,0.3);
         }
-       
-        #hud .key {
-            display: inline-block;
-            background: rgba(255, 255, 255, 0.2);
-            padding: 2px 8px;
-            border-radius: 4px;
-            margin: 0 5px;
-            border: 1px solid #0f0;
-        }
-       
-        #weapon-wheel {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 400px;
-            height: 400px;
-            background: radial-gradient(circle, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.8) 70%, transparent 100%);
-            border-radius: 50%;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 200;
-            border: 3px solid #ffcc00;
-            box-shadow: 0 0 50px rgba(255, 204, 0, 0.5);
-        }
-       
-        .weapon-slot {
-            position: absolute;
-            color: #fff;
-            font-weight: bold;
-            cursor: pointer;
-            pointer-events: auto;
-            padding: 20px;
-            transition: all 0.3s;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 50%;
-            width: 80px;
-            height: 80px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            transform-origin: center;
-        }
-       
-        .weapon-slot:hover {
-            background: #ffcc00;
-            color: #000;
-            transform: scale(1.2);
-            border-color: #ffcc00;
-            box-shadow: 0 0 20px #ffcc00;
-        }
-       
-        #crosshair {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 20px;
-            height: 20px;
-            z-index: 50;
-            pointer-events: none;
-        }
-       
-        #crosshair::before,
-        #crosshair::after {
-            content: '';
-            position: absolute;
-            background: rgba(255, 255, 255, 0.8);
-        }
-       
-        #crosshair::before {
-            width: 20px;
-            height: 2px;
-            top: 9px;
-            left: 0;
-        }
-       
-        #crosshair::after {
-            width: 2px;
-            height: 20px;
-            top: 0;
-            left: 9px;
-        }
-       
-        #ammo {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            color: #fff;
-            font-size: 24px;
-            font-weight: bold;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-            background: rgba(0, 0, 0, 0.5);
-            padding: 10px 20px;
-            border-radius: 10px;
-            display: none;
-        }
-       
-        #minimap {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            width: 200px;
-            height: 200px;
-            background: rgba(0, 0, 0, 0.7);
-            border-radius: 50%;
-            overflow: hidden;
-            border: 2px solid #0f0;
-            z-index: 100;
-        }
-       
-        #loading-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: #000;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            color: #ffcc00;
-        }
-       
-        .progress-bar {
-            width: 300px;
-            height: 20px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            margin-top: 20px;
-            overflow: hidden;
-        }
-       
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #ffcc00, #ff6600);
-            width: 0%;
-            transition: width 0.3s;
-        }
+        .weapon-slot:hover { background: #ffcc00; color: #000; transform: scale(1.2); border-color: #ffcc00; box-shadow: 0 0 20px #ffcc00; }
+        #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 20px; height: 20px; z-index: 50; pointer-events: none; }
+        #crosshair::before, #crosshair::after { content: ''; position: absolute; background: rgba(255,255,255,0.8); }
+        #crosshair::before { width: 20px; height: 2px; top: 9px; left: 0; }
+        #crosshair::after { width: 2px; height: 20px; top: 0; left: 9px; }
+        #ammo { position: absolute; bottom: 20px; right: 20px; color: #fff; font-size: 24px; font-weight: bold;
+            text-shadow: 2px 2px 4px #000; background: rgba(0,0,0,0.5); padding: 10px 20px; border-radius: 10px; display: none; }
+        #minimap { position: absolute; bottom: 20px; left: 20px; width: 200px; height: 200px; background: rgba(0,0,0,0.7);
+            border-radius: 50%; overflow: hidden; border: 2px solid #0f0; z-index: 100; }
+        #loading-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; color: #ffcc00; }
+        .progress-bar { width: 300px; height: 20px; background: rgba(255,255,255,0.1); border-radius: 10px; margin-top: 20px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #ffcc00, #ff6600); width: 0%; transition: width 0.3s; }
     </style>
 </head>
 <body>
     <div id="loading-screen">
-        <h1>GTA WEB ENGINE FIRE EDITION 🔥</h1>
-        <p>Loading assets... Hold tight</p>
-        <div class="progress-bar">
-            <div class="progress-fill" id="progress-fill"></div>
-        </div>
+        <h1>GTA WEB OPTIMIZED 🔥</h1>
+        <p>Loading... (Click canvas to lock mouse)</p>
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
     </div>
-   
     <div id="crosshair"></div>
     <div id="ammo"></div>
     <div id="hud">
-        <h1>GTA WEB ENGINE v3.0</h1>
+        <h1>GTA WEB v4.0</h1>
         <div>Health: <span id="health">100</span></div>
         <div>Money: $<span id="money">500</span></div>
         <div>Wanted: <span id="wanted">0</span> ⭐</div>
-        <div><span class="key">WASD</span> Move</div>
-        <div><span class="key">Mouse</span> Aim/Shoot</div>
-        <div><span class="key">Tab</span> Weapons</div>
-        <div><span class="key">F</span> Enter/Exit Ride</div>
-        <div><span class="key">Space</span> Jump</div>
-        <div><span class="key">Shift</span> Sprint</div>
-        <div><span class="key">R</span> Reload</div>
+        <div><span class="key">WASD</span> Move • <span class="key">Mouse</span> Look/Shoot</div>
+        <div><span class="key">Shift</span> Sprint • <span class="key">Space</span> Jump • <span class="key">F</span> Enter/Exit Vehicle</div>
+        <div><span class="key">Tab</span> Weapon Wheel • <span class="key">R</span> Reload • <span class="key">Click</span> Lock Mouse</div>
         <div id="current-weapon">Weapon: FISTS</div>
-        <div id="vehicle-status">Ride: On foot</div>
+        <div id="vehicle-status">Status: On foot</div>
     </div>
-   
     <div id="weapon-wheel">
-        <div class="weapon-slot" style="top: 10%; left: 50%; transform: translateX(-50%);" onclick="equip('fist')">👊</div>
-        <div class="weapon-slot" style="top: 50%; right: 10%; transform: translateY(-50%);" onclick="equip('pistol')">🔫</div>
-        <div class="weapon-slot" style="bottom: 10%; left: 50%; transform: translateX(-50%);" onclick="equip('shotgun')">💥</div>
-        <div class="weapon-slot" style="top: 50%; left: 10%; transform: translateY(-50%);" onclick="equip('m4')">🔫</div>
-        <div class="weapon-slot" style="top: 25%; left: 25%;" onclick="equip('katana')">🗡️</div>
-        <div class="weapon-slot" style="top: 25%; right: 25%;" onclick="equip('rpg')">🚀</div>
+        <div class="weapon-slot" style="top:10%;left:50%;transform:translateX(-50%)" onclick="equip('fist')">👊</div>
+        <div class="weapon-slot" style="top:50%;right:10%;transform:translateY(-50%)" onclick="equip('pistol')">🔫</div>
+        <div class="weapon-slot" style="bottom:10%;left:50%;transform:translateX(-50%)" onclick="equip('shotgun')">💥</div>
+        <div class="weapon-slot" style="top:50%;left:10%;transform:translateY(-50%)" onclick="equip('m4')">🔫</div>
+        <div class="weapon-slot" style="top:25%;left:25%" onclick="equip('katana')">🗡️</div>
+        <div class="weapon-slot" style="top:25%;right:25%" onclick="equip('rpg')">🚀</div>
     </div>
-   
     <canvas id="minimap"></canvas>
-   
+
     <script type="importmap">
     {
         "imports": {
@@ -231,336 +81,352 @@
     import * as THREE from 'three';
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-    // --- GAME STATE ---
+    // Game state
     const gameState = {
         currentWeapon: 'fist',
-        weapons: {
-            fist: { name: 'Fists', ammo: '∞', damage: 10, range: 2, modelUrl: null },
-            pistol: { name: 'Pistol', ammo: 12, maxAmmo: 12, damage: 25, range: 100, modelUrl: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/SimpleSparseAccessor/glTF/SimpleSparseAccessor.gltf' }, // Swap with better: https://poly.pizza/m/2B0pK4yZ0G
-            shotgun: { name: 'Shotgun', ammo: 6, maxAmmo: 6, damage: 50, range: 30, modelUrl: 'https://sketchfab.com/3d-models/shotgun-low-poly-3d-model-free-4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b' }, // Find actual URL
-            m4: { name: 'M4 Rifle', ammo: 30, maxAmmo: 30, damage: 35, range: 200, modelUrl: 'https://poly.pizza/m/4C0pL5yZ0H' },
-            katana: { name: 'Katana', ammo: '∞', damage: 40, range: 3, modelUrl: 'https://sketchfab.com/3d-models/sci-fi-sword-09ff916bd580422395bec19b8a9cbad6' },
-            rpg: { name: 'RPG', ammo: 1, maxAmmo: 1, damage: 100, range: 500, modelUrl: 'https://poly.pizza/m/5D0pM6yZ0I' }
-        },
+        weapons: { fist: {name:'Fists',ammo:'∞',damage:15},
+                   pistol: {name:'Pistol',ammo:15,maxAmmo:15,damage:25},
+                   shotgun: {name:'Shotgun',ammo:8,maxAmmo:8,damage:60},
+                   m4: {name:'M4',ammo:30,maxAmmo:30,damage:30},
+                   katana: {name:'Katana',ammo:'∞',damage:50},
+                   rpg: {name:'RPG',ammo:2,maxAmmo:2,damage:100} },
         isDriving: false,
         playerHealth: 100,
         playerMoney: 500,
         wantedLevel: 0,
-        enemies: [],
-        cops: [],
-        projectiles: []
+        enemies: [], cops: [], projectiles: []
     };
 
-    // --- SCENE SETUP ---
+    // Scene setup
     const scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0x87CEEB, 50, 1000); // Tighter fog for perf
-
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
-    camera.position.set(0, 5, 0);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    scene.background = new THREE.Color(0x87CEEB);
+    scene.fog = new THREE.FogExp2(0x87CEEB, 0.0008);
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 2000);
+    const renderer = new THREE.WebGLRenderer({antialias:true});
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.body.appendChild(renderer.domElement);
+
+    // Lighting
+    const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambient);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+    dirLight.position.set(100, 200, 100);
+    dirLight.castShadow = true;
+    scene.add(dirLight);
 
     // Audio
     const listener = new THREE.AudioListener();
     camera.add(listener);
     const audioLoader = new THREE.AudioLoader();
-    const gunshotSound = new THREE.Audio(listener);
-    audioLoader.load('https://freesound.org/data/previews/512/512612_11984166-lq.mp3', buffer => gunshotSound.setBuffer(buffer)); // Free gunshot
-    const explosionSound = new THREE.Audio(listener);
-    audioLoader.load('https://freesound.org/data/previews/512/512613_11984166-lq.mp3', buffer => explosionSound.setBuffer(buffer)); // Free boom
-    const engineSound = new THREE.Audio(listener);
-    audioLoader.load('https://freesound.org/data/previews/512/512614_11984166-lq.mp3', buffer => { engineSound.setBuffer(buffer); engineSound.setLoop(true); }); // Free engine
+    const sounds = {};
+    ['gunshot','explosion','engine'].forEach(name => {
+        sounds[name] = new THREE.Audio(listener);
+    });
+    audioLoader.load('https://freesound.org/data/previews/276/276956_5123853-lq.mp3', buf => sounds.gunshot.setBuffer(buf));
+    audioLoader.load('https://freesound.org/data/previews/387/387182_5123853-lq.mp3', buf => sounds.explosion.setBuffer(buf));
+    audioLoader.load('https://freesound.org/data/previews/145/145817_2595768-lq.mp3', buf => { sounds.engine.setBuffer(buf); sounds.engine.setLoop(true); sounds.engine.setVolume(0.5); });
 
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0x404040, 2);
-    scene.add(ambientLight);
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
-    directionalLight.position.set(100, 200, 100);
-    directionalLight.castShadow = true;
-    scene.add(directionalLight);
+    // Loading
+    const loader = new GLTFLoader();
+    const minimapCtx = document.getElementById('minimap').getContext('2d');
 
-    // Loading Manager
-    const loadingManager = new THREE.LoadingManager();
-    const loader = new GLTFLoader(loadingManager);
-    loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
-        document.getElementById('progress-fill').style.width = `${(itemsLoaded / itemsTotal) * 100}%`;
-    };
-    loadingManager.onLoad = () => {
-        document.getElementById('loading-screen').style.display = 'none';
-        document.getElementById('crosshair').style.display = 'block';
-    };
-
-    // Game Objects
-    let player, playerMixer, handBone, vehicle, currentWeaponObject;
-    let minimapCtx = document.getElementById('minimap').getContext('2d');
-
-    // Load City (Modular Buildings)
-    loader.load('https://sketchfab.com/blueprint/api/models/a2d5c7bfcc2148fb8994864c43dfcc97/download?type=gltf', gltf => {
-        const city = gltf.scene;
-        city.scale.set(50, 50, 50);
-        city.position.set(0, -5, 0);
-        scene.add(city);
-    }, undefined, createFallbackCity);
-
-    function createFallbackCity() {
-        // Simple ground + random buildings
-        const ground = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), new THREE.MeshPhongMaterial({ color: 0x3a7c3a }));
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        scene.add(ground);
-
-        for (let i = 0; i = 100; i++) {
-            const building = new THREE.Mesh(new THREE.BoxGeometry(20, 50, 20), new THREE.MeshPhongMaterial({ color: Math.random() * 0xffffff }));
-            building.position.set(Math.random() * 1000 - 500, 25, Math.random() * 1000 - 500);
-            scene.add(building);
-        }
+    // Procedural city (always fast fallback)
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(2000,2000), new THREE.MeshStandardMaterial({color:0x333333}));
+    ground.rotation.x = -Math.PI/2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+    for(let i=0; i<50; i++){
+        const h = Math.random()*80 + 20;
+        const building = new THREE.Mesh(new THREE.BoxGeometry(20,h,20), new THREE.MeshStandardMaterial({color:Math.random()*0xffffff}));
+        building.position.set(Math.random()*1000-500, h/2, Math.random()*1000-500);
+        building.castShadow = true; building.receiveShadow = true;
+        scene.add(building);
     }
 
-    // Load Player (Low Poly Character)
-    loader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/models/gltf/Soldier.glb', gltf => {
+    // Player & vehicle
+    let player, playerMixer, handBone, vehicle, currentWeaponObject = null;
+
+    // Simple vehicle
+    function createVehicle(){
+        const group = new THREE.Group();
+        const body = new THREE.Mesh(new THREE.BoxGeometry(4,2,8), new THREE.MeshStandardMaterial({color:0xff0000}));
+        group.add(body);
+        const wheelGeo = new THREE.CylinderGeometry(1,1,0.5,16);
+        const wheelMat = new THREE.MeshStandardMaterial({color:0x222222});
+        [[-2,-1,-3],[2,-1,-3],[-2,-1,3],[2,-1,3]].forEach(p=>{
+            const w = new THREE.Mesh(wheelGeo, wheelMat);
+            w.rotation.z = Math.PI/2;
+            w.position.set(...p);
+            group.add(w);
+        });
+        group.position.set(30,1,30);
+        scene.add(group);
+        return group;
+    }
+    vehicle = createVehicle();
+
+    // Load player (reliable three.js model)
+    loader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/models/gltf/Soldier.glb', gltf=>{
         player = gltf.scene;
-        player.scale.set(2, 2, 2);
-        player.position.set(0, 0, 0);
+        player.scale.set(2,2,2);
+        player.position.y = 1;
         scene.add(player);
         playerMixer = new THREE.AnimationMixer(player);
-        gltf.animations.forEach(clip => playerMixer.clipAction(clip).play());
-        handBone = player.getObjectByName('mixamorigRightHand'); // Adjust for model
-    }, undefined, createFallbackPlayer);
-
-    function createFallbackPlayer() {
-        player = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), new THREE.MeshPhongMaterial({ color: 0x00ff00 }));
-        player.position.set(0, 0, 0);
+        gltf.animations.forEach(c=>playerMixer.clipAction(c).play());
+        handBone = player.getObjectByName('mixamorigRightHand');
+        document.getElementById('loading-screen').style.display='none';
+        document.getElementById('crosshair').style.display='block';
+    }, undefined, ()=>{ // fallback box
+        player = new THREE.Mesh(new THREE.BoxGeometry(2,4,2), new THREE.MeshStandardMaterial({color:0x00ff00}));
+        player.position.y = 2;
         scene.add(player);
-    }
-
-    // Load Vehicle (Car)
-    loader.load('https://sketchfab.com/3d-models/car-glb-838e060c52d487bb8708b1dd8bc3a90/download?type=gltf', gltf => {
-        vehicle = gltf.scene;
-        vehicle.scale.set(5, 5, 5);
-        vehicle.position.set(50, 0, 50);
-        scene.add(vehicle);
-    }, undefined, createFallbackVehicle);
-
-    function createFallbackVehicle() {
-        vehicle = new THREE.Mesh(new THREE.BoxGeometry(3, 1, 5), new THREE.MeshPhongMaterial({ color: 0xff0000 }));
-        vehicle.position.set(50, 0, 50);
-        scene.add(vehicle);
-    }
-
-    // Load Weapon Models (Now GLTF)
-    const weaponModels = {};
-    Object.keys(gameState.weapons).forEach(key => {
-        const url = gameState.weapons[key].modelUrl;
-        if (url) {
-            loader.load(url, gltf => weaponModels[key] = gltf.scene);
-        }
     });
 
-    // Spawn Enemies
-    function spawnEnemy() {
-        loader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/models/gltf/RobotExpressive.glb', gltf => {
-            const enemy = gltf.scene.clone();
-            enemy.position.set(Math.random() * 200 - 100, 0, Math.random() * 200 - 100);
-            enemy.userData = { health: 50, type: 'enemy' };
-            scene.add(enemy);
-            gameState.enemies.push(enemy);
-        });
-    }
-    for (let i = 0; i < 5; i++) spawnEnemy();
-
-    // Spawn Cops on Wanted
-    function spawnCop() {
-        loader.load('https://poly.pizza/m/3E0pN4yZ0J', gltf => { // Cop model example
-            const cop = gltf.scene.clone();
-            cop.position.set(player.position.x + 50, 0, player.position.z + 50);
-            cop.userData = { health: 100, type: 'cop', vehicle: createFallbackVehicle() }; // Cops have cars
-            scene.add(cop);
-            gameState.cops.push(cop);
-        });
-    }
-
-    // --- WEAPON SYSTEM ---
-    window.equip = function(weaponType) {
-        gameState.currentWeapon = weaponType;
-        if (currentWeaponObject) handBone.remove(currentWeaponObject);
-        document.getElementById('current-weapon').textContent = `Weapon: ${gameState.weapons[weaponType].name}`;
-        if (weaponType !== 'fist') {
-            document.getElementById('ammo').style.display = 'block';
-            updateAmmoDisplay();
-            if (weaponModels[weaponType] && handBone) {
-                currentWeaponObject = weaponModels[weaponType].clone();
-                handBone.add(currentWeaponObject);
-            }
-        } else {
-            document.getElementById('ammo').style.display = 'none';
-        }
-        document.getElementById('weapon-wheel').style.display = 'none';
+    // Primitive weapons
+    const weaponModels = {
+        pistol: (()=>{ const g=new THREE.Group(); const b=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.2,0.8),new THREE.MeshStandardMaterial({color:0x444444})); g.add(b); return g; })(),
+        shotgun: (()=>{ const g=new THREE.Group(); const b=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,1.2,8),new THREE.MeshStandardMaterial({color:0x222222})); b.rotation.z=Math.PI/2; b.position.y=0.3; g.add(b); return g; })(),
+        m4: (()=>{ const g=new THREE.Group(); const b=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.3,1.5),new THREE.MeshStandardMaterial({color:0x666666})); g.add(b); return g; })(),
+        katana: (()=>{ const g=new THREE.Group(); const blade=new THREE.Mesh(new THREE.BoxGeometry(0.05,2,0.2),new THREE.MeshStandardMaterial({color:0xcccccc})); blade.position.y=0.8; g.add(blade); return g; })(),
+        rpg: (()=>{ const g=new THREE.Group(); const tube=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,2,8),new THREE.MeshStandardMaterial({color:0x555555})); g.add(tube); return g; })()
     };
 
-    function updateAmmoDisplay() {
-        const w = gameState.weapons[gameState.currentWeapon];
-        document.getElementById('ammo').textContent = `${w.name}: ${w.ammo}/${w.maxAmmo || '∞'}`;
+    // Enemies & cops
+    function spawnEnemy(pos){
+        loader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/models/gltf/RobotExpressive.glb', gltf=>{
+            const e = gltf.scene.clone();
+            e.position.copy(pos||new THREE.Vector3(Math.random()*200-100,1,Math.random()*200-100));
+            e.userData = {health:80,type:'enemy'};
+            e.traverse(n=>{if(n.isMesh)n.castShadow=true;});
+            scene.add(e);
+            gameState.enemies.push(e);
+        });
+    }
+    for(let i=0;i<5;i++) spawnEnemy();
+    function spawnCop(){
+        loader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/models/gltf/RobotExpressive.glb', gltf=>{
+            const c = gltf.scene.clone();
+            c.position.set(player.position.x+Math.random()*60-30,1,player.position.z+Math.random()*60-30);
+            c.traverse(n=>{if(n.isMesh&&n.material)n.material=n.material.clone(); n.material.color.set(0x0000aa);});
+            c.userData = {health:120,type:'cop'};
+            scene.add(c);
+            gameState.cops.push(c);
+        });
     }
 
-    function fireWeapon() {
+    // Weapon system
+    window.equip = function(w){
+        gameState.currentWeapon = w;
+        if(currentWeaponObject && handBone) handBone.remove(currentWeaponObject);
+        document.getElementById('current-weapon').textContent = `Weapon: ${gameState.weapons[w].name}`;
+        if(w!=='fist'){
+            document.getElementById('ammo').style.display='block';
+            updateAmmo();
+            if(handBone && weaponModels[w]){
+                currentWeaponObject = weaponModels[w].clone();
+                currentWeaponObject.scale.set(3,3,3);
+                currentWeaponObject.rotation.set(0,Math.PI,0);
+                currentWeaponObject.position.set(0.3,-0.3,-0.6);
+                handBone.add(currentWeaponObject);
+            }
+        }else document.getElementById('ammo').style.display='none';
+        document.getElementById('weapon-wheel').style.display='none';
+    };
+    function updateAmmo(){
+        const w=gameState.weapons[gameState.currentWeapon];
+        document.getElementById('ammo').textContent = `${w.name}: ${w.ammo}${w.maxAmmo?'/'+w.maxAmmo:''}`;
+    }
+
+    // Effects
+    function createMuzzleFlash(){
+        if(!sounds.gunshot.isPlaying) sounds.gunshot.play();
+        const light = new THREE.PointLight(0xffaa00,3,30);
+        light.position.copy(camera.position);
+        light.position.add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(3));
+        scene.add(light);
+        setTimeout(()=>scene.remove(light),100);
+    }
+    function createBulletImpact(point){
+        const decal = new THREE.Mesh(new THREE.CircleGeometry(0.3,16), new THREE.MeshBasicMaterial({color:0x222222,side:THREE.DoubleSide}));
+        decal.position.copy(point);
+        decal.position.add(new THREE.Vector3(0,0.01,0));
+        decal.lookAt(camera.position);
+        scene.add(decal);
+        setTimeout(()=>scene.remove(decal),8000);
+    }
+    function createExplosion(pos){
+        if(sounds.explosion) sounds.explosion.play();
+        const particles = new THREE.Points(
+            new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(300).map(()=> (Math.random()-0.5)*20),3)),
+            new THREE.PointsMaterial({color:0xff4400,size:1})
+        );
+        particles.position.copy(pos);
+        scene.add(particles);
+        setTimeout(()=>scene.remove(particles),1200);
+    }
+
+    // Shooting
+    function fireWeapon(){
         const w = gameState.weapons[gameState.currentWeapon];
-        if (w.ammo === 0) return;
-        gunshotSound.play();
+        if(w.ammo===0) return;
         createMuzzleFlash();
-        if (w.ammo !== '∞') w.ammo--;
-        updateAmmoDisplay();
-        if (w.name === 'RPG') {
-            const proj = new THREE.Mesh(new THREE.SphereGeometry(0.5), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+        if(w.ammo!=='∞') { w.ammo--; updateAmmo(); }
+        if(w===gameState.weapons.rpg){
+            const proj = new THREE.Mesh(new THREE.SphereGeometry(0.6), new THREE.MeshBasicMaterial({color:0xff0000}));
             proj.position.copy(camera.position);
-            proj.velocity = camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(50);
+            proj.velocity = camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(80);
             scene.add(proj);
             gameState.projectiles.push(proj);
-        } else {
-            const ray = new THREE.Raycaster(camera.position, camera.getWorldDirection(new THREE.Vector3()));
-            const intersects = ray.intersectObjects([...gameState.enemies, ...gameState.cops], true);
-            if (intersects.length) {
-                const hit = intersects[0].object;
+        }else{
+            const raycaster = new THREE.Raycaster(camera.position, camera.getWorldDirection(new THREE.Vector3()));
+            const hits = raycaster.intersectObjects([...gameState.enemies,...gameState.cops], true);
+            if(hits.length>0){
+                const hit = hits[0].object.parent || hits[0].object;
                 hit.userData.health -= w.damage;
-                createBulletImpact(intersects[0].point);
-                if (hit.userData.health <= 0) {
+                createBulletImpact(hits[0].point);
+                if(hit.userData.health<=0){
                     scene.remove(hit);
-                    gameState.playerMoney += 100;
+                    gameState.enemies = gameState.enemies.filter(e=>e!==hit);
+                    gameState.cops = gameState.cops.filter(c=>c!==hit);
+                    gameState.playerMoney += 150;
                     document.getElementById('money').textContent = gameState.playerMoney;
-                    gameState.wantedLevel += 1;
+                    gameState.wantedLevel = Math.min(5, gameState.wantedLevel+1);
                     document.getElementById('wanted').textContent = gameState.wantedLevel;
-                    if (gameState.wantedLevel >= 3) spawnCop();
+                    if(gameState.wantedLevel>=3) { spawnCop(); spawnCop(); }
                 }
             }
         }
-        if (w.ammo === 0) setTimeout(() => { w.ammo = w.maxAmmo; updateAmmoDisplay(); }, 1500);
+        if(w.ammo===0 && w.maxAmmo) setTimeout(()=>{w.ammo=w.maxAmmo; updateAmmo();},1800);
     }
 
-    function createExplosion(position) {
-        explosionSound.play();
-        const particleGeo = new THREE.BufferGeometry();
-        const positions = [];
-        for (let i = 0; i < 100; i++) {
-            positions.push((Math.random() - 0.5) * 10);
-            positions.push((Math.random() - 0.5) * 10);
-            positions.push((Math.random() - 0.5) * 10);
-        }
-        particleGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-        const particleMat = new THREE.PointsMaterial({ color: 0xff6600, size: 0.5 });
-        const particles = new THREE.Points(particleGeo, particleMat);
-        particles.position.copy(position);
-        scene.add(particles);
-        setTimeout(() => scene.remove(particles), 1000);
-    }
-
-    // --- CONTROLS & LOOP ---
+    // Controls
     const keys = {};
+    let yaw=0, pitch=0;
     const clock = new THREE.Clock();
-    let yaw = 0, pitch = 0;
-
-    document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
-    document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
-    document.addEventListener('mousedown', e => { if (e.button === 0) fireWeapon(); });
-    document.addEventListener('mousemove', e => {
-        if (document.pointerLockElement) {
-            yaw -= e.movementX * 0.002;
-            pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch - e.movementY * 0.002));
+    document.addEventListener('keydown', e=> { keys[e.key.toLowerCase()]=true; if(e.key==='Tab'){e.preventDefault(); document.getElementById('weapon-wheel').style.display='flex';} });
+    document.addEventListener('keyup', e=> keys[e.key.toLowerCase()]=false);
+    document.addEventListener('mousedown', e=>{ if(e.button===0 && document.pointerLockElement) fireWeapon(); });
+    document.addEventListener('mousemove', e=>{
+        if(document.pointerLockElement){
+            yaw -= e.movementX*0.002;
+            pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch - e.movementY*0.002));
         }
     });
-    renderer.domElement.addEventListener('click', () => renderer.domElement.requestPointerLock());
+    renderer.domElement.addEventListener('click', ()=> renderer.domElement.requestPointerLock());
+    document.addEventListener('keydown', e=>{
+        if(e.key==='f') toggleVehicle();
+        if(e.key==='r' && gameState.currentWeapon!=='fist'){
+            const w=gameState.weapons[gameState.currentWeapon];
+            w.ammo = w.maxAmmo; updateAmmo();
+        }
+    });
 
-    function toggleVehicle() {
-        if (player.position.distanceTo(vehicle.position) < 10) {
+    function toggleVehicle(){
+        if(!player || !vehicle) return;
+        if(player.position.distanceTo(vehicle.position)<12){
             gameState.isDriving = !gameState.isDriving;
             player.visible = !gameState.isDriving;
-            if (gameState.isDriving) {
-                engineSound.play();
-                document.getElementById('vehicle-status').textContent = 'Ride: Cruisin\'';
-            } else {
-                engineSound.stop();
-                document.getElementById('vehicle-status').textContent = 'Ride: On foot';
+            if(gameState.isDriving){
+                vehicle.rotation.y = yaw;
+                sounds.engine.play();
+                document.getElementById('vehicle-status').textContent = 'Status: Driving';
+            }else{
+                player.position.copy(vehicle.position);
+                player.position.y += 3;
+                sounds.engine.stop();
+                document.getElementById('vehicle-status').textContent = 'Status: On foot';
             }
         }
     }
 
-    function updateMinimap() {
-        minimapCtx.clearRect(0, 0, 200, 200);
-        minimapCtx.fillStyle = '#0f0';
-        minimapCtx.fillRect(100, 100, 5, 5); // Player dot
-        gameState.enemies.forEach(e => {
-            const dx = (e.position.x - player.position.x) / 10 + 100;
-            const dz = (e.position.z - player.position.z) / 10 + 100;
-            minimapCtx.fillStyle = '#ff0000';
-            minimapCtx.fillRect(dx, dz, 3, 3);
+    function updateMinimap(){
+        minimapCtx.clearRect(0,0,200,200);
+        minimapCtx.fillStyle='#0f0';
+        minimapCtx.fillRect(98,98,4,4); // player
+        gameState.enemies.forEach(e=>{
+            const dx = (e.position.x - (gameState.isDriving?vehicle.position.x:player.position.x))/8 + 100;
+            const dz = (e.position.z - (gameState.isDriving?vehicle.position.z:player.position.z))/8 + 100;
+            minimapCtx.fillStyle='#ff0000';
+            minimapCtx.fillRect(dx,dz,4,4);
+        });
+        gameState.cops.forEach(c=>{
+            const dx = (c.position.x - (gameState.isDriving?vehicle.position.x:player.position.x))/8 + 100;
+            const dz = (c.position.z - (gameState.isDriving?vehicle.position.z:player.position.z))/8 + 100;
+            minimapCtx.fillStyle='#0000ff';
+            minimapCtx.fillRect(dx,dz,4,4);
         });
     }
 
-    function animate() {
+    // Main loop
+    function animate(){
         requestAnimationFrame(animate);
         const delta = clock.getDelta();
-        if (playerMixer) playerMixer.update(delta);
+        if(playerMixer) playerMixer.update(delta);
 
         const target = gameState.isDriving ? vehicle : player;
-        const speed = keys['shift'] ? 20 : 10;
-        const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
-        if (keys['w']) target.position.add(forward.multiplyScalar(speed * delta));
-        if (keys['s']) target.position.add(forward.multiplyScalar(-speed * delta));
-        if (keys['a']) target.position.add(forward.cross(new THREE.Vector3(0,1,0)).multiplyScalar(-speed * delta));
-        if (keys['d']) target.position.add(forward.cross(new THREE.Vector3(0,1,0)).multiplyScalar(speed * delta));
-        if (keys[' ']) target.position.y += 10 * delta; // Jump
+        if(target) target.rotation.y = yaw;
 
-        // Gravity & Collision
-        target.position.y -= 9.8 * delta; // Gravity
-        if (target.position.y < 0) target.position.y = 0;
+        const speed = keys['shift'] ? 25 : 12;
+        const dir = new THREE.Vector3(0,0,-1).applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
+        if(keys['w']) target.position.addScaledVector(dir, speed*delta);
+        if(keys['s']) target.position.addScaledVector(dir, -speed*delta);
+        if(keys['a']) target.position.addScaledVector(new THREE.Vector3(-1,0,0).applyAxisAngle(new THREE.Vector3(0,1,0), yaw), speed*delta);
+        if(keys['d']) target.position.addScaledVector(new THREE.Vector3(1,0,0).applyAxisAngle(new THREE.Vector3(0,1,0), yaw), speed*delta);
+        if(keys[' '] && !gameState.isDriving) target.position.y += 12*delta;
 
-        // Update Projectiles
-        gameState.projectiles = gameState.projectiles.filter(p => {
-            p.position.add(p.velocity.clone().multiplyScalar(delta));
-            if (p.position.y < 0) {
-                createExplosion(p.position);
+        if(!gameState.isDriving){
+            target.position.y -= 20*delta;
+            if(target.position.y<1) target.position.y=1;
+        }
+
+        // Projectiles
+        gameState.projectiles = gameState.projectiles.filter(p=>{
+            const oldPos = p.position.clone();
+            p.position.addScaledVector(p.velocity, delta);
+            const ray = new THREE.Raycaster(oldPos, p.velocity.clone().normalize(), 0, p.velocity.length()*delta);
+            const hits = ray.intersectObjects(scene.children,true);
+            if(hits.length>0 && hits[0].distance < p.velocity.length()*delta){
+                createExplosion(hits[0].point);
                 scene.remove(p);
                 return false;
             }
+            if(p.position.y<0){ createExplosion(p.position); scene.remove(p); return false; }
             return true;
         });
 
-        // Enemy AI
-        gameState.enemies.forEach(e => {
-            const dir = player.position.clone().sub(e.position).normalize();
-            e.position.add(dir.multiplyScalar(5 * delta));
-            if (player.position.distanceTo(e.position) < 2) gameState.playerHealth -= 1; // Melee attack
+        // AI
+        [...gameState.enemies, ...gameState.cops].forEach(n=>{
+            const dirToPlayer = (gameState.isDriving?vehicle.position:player.position).clone().sub(n.position).normalize();
+            const chaseSpeed = n.userData.type==='cop' ? 18 : 8;
+            n.position.addScaledVector(dirToPlayer, chaseSpeed*delta);
+            if(n.position.distanceTo(gameState.isDriving?vehicle.position:player.position)<4){
+                gameState.playerHealth -= n.userData.type==='cop'?20:10;
+                document.getElementById('health').textContent = Math.max(0,gameState.playerHealth);
+            }
         });
 
-        // Cop AI
-        gameState.cops.forEach(c => {
-            const dir = player.position.clone().sub(c.position).normalize();
-            c.position.add(dir.multiplyScalar(15 * delta)); // Faster
-        });
+        // Camera (smooth third-person)
+        const camOffset = new THREE.Vector3(0,10,25).applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
+        camera.position.copy(target.position).add(camOffset);
+        camera.position.y += 5 + pitch*5;
+        camera.lookAt(target.position.clone().add(new THREE.Vector3(0,5,0)));
 
-        // Camera
-        camera.rotation.set(pitch, yaw, 0);
-        camera.position.copy(target.position).add(new THREE.Vector3(0, 5, 10).applyEuler(camera.rotation));
-
-        // HUD Updates
         document.getElementById('health').textContent = gameState.playerHealth;
-        if (gameState.playerHealth <= 0) alert('Game Over! Reload to restart.');
+        if(gameState.playerHealth<=0) alert('Wasted! Reload page to try again.');
 
         updateMinimap();
-        renderer.render(scene, camera);
+        renderer.render(scene,camera);
     }
 
-    // Init
     equip('fist');
     animate();
-    window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
+
+    window.addEventListener('resize',()=>{
+        camera.aspect = window.innerWidth/window.innerHeight;
         camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setSize(window.innerWidth,window.innerHeight);
     });
-    document.addEventListener('keydown', e => { if (e.key === 'f') toggleVehicle(); if (e.key === 'Tab') document.getElementById('weapon-wheel').style.display = 'flex'; });
     </script>
 </body>
 </html>
